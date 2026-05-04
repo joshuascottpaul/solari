@@ -30,15 +30,13 @@
   --time-x: 50%;  --time-y: 44%;
   --moon-x: 84%;  --moon-y: 12%;
   --date-x: 50%;  --date-y: 66%;
-  --slot-a-x: 25%; --slot-a-y: 84%;
-  --slot-b-x: 75%; --slot-b-y: 84%;
+  --slot-x: 50%; --slot-y: 84%;
 
   /* Drift offsets -- all 0 until Phase 7 */
   --time-dx: 0px;  --time-dy: 0px;
   --moon-dx: 0px;  --moon-dy: 0px;
   --date-dx: 0px;  --date-dy: 0px;
-  --slot-a-dx: 0px; --slot-a-dy: 0px;
-  --slot-b-dx: 0px; --slot-b-dy: 0px;
+  --slot-dx: 0px; --slot-dy: 0px;
 
   /* SDD 17.1: @property needed for custom property transitions (Phase 5) */
   transition: --type-primary 60s linear, --type-secondary 60s linear, --type-accent 60s linear;
@@ -84,6 +82,7 @@ html, body {
   transform: translate(-50%, -50%) translate(var(--date-dx), var(--date-dy));
   color: var(--type-secondary);
   letter-spacing: 0.04em;
+  font-weight: 300;
 }
 
 #moon-disc {
@@ -94,16 +93,10 @@ html, body {
   transition: left 60s ease-in-out, top 60s ease-in-out;
 }
 
-#slot-a {
+#slot {
   position: absolute; text-align: center;
-  left: var(--slot-a-x); top: var(--slot-a-y);
-  transform: translate(-50%, -50%) translate(var(--slot-a-dx), var(--slot-a-dy));
-}
-
-#slot-b {
-  position: absolute; text-align: center;
-  left: var(--slot-b-x); top: var(--slot-b-y);
-  transform: translate(-50%, -50%) translate(var(--slot-b-dx), var(--slot-b-dy));
+  left: var(--slot-x); top: var(--slot-y);
+  transform: translate(-50%, -50%) translate(var(--slot-dx), var(--slot-dy));
 }
 
 .slot {
@@ -112,10 +105,8 @@ html, body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
+  font-weight: 300;
 }
-
-.slot .label { font-size: 2.2vw; }
-.slot .value { font-size: 3.6vw; }
 
 #time, #date, .slot {
   filter: brightness(var(--lum-mod));

@@ -23,8 +23,7 @@ const CONFIG = {
     softReloadHours: 24
   },
   rotation: {
-    slotAHoldSec: 28,
-    slotBHoldSec: 36,
+    slotHoldSec: 32,
     transitionMs: 1500,
     cascadeStaggerMs: 70,
     almanacHorizonDays: 7
@@ -32,8 +31,7 @@ const CONFIG = {
   drift: {
     time:  { ampX: 60, ampY: 50, periodSec: 117 },
     date:  { ampX: 20, ampY: 12, periodSec: 89  },
-    slotA: { ampX: 16, ampY: 12, periodSec: 143 },
-    slotB: { ampX: 16, ampY: 12, periodSec: 101 },
+    slot: { ampX: 16, ampY: 12, periodSec: 143 },
     moon:  { ampX: 30, ampY: 20, periodSec: 73  },
     pixelShiftIntervalMin: 6,
     pixelShiftAmplitude: 4
@@ -120,8 +118,8 @@ const AppState = {
   alert: null,         // or { severity, headline, description, expires }
   almanac: null,       // or { name, date, daysAway }
   rotator: {
-    slotA: { text: '', index: 0 },
-    slotB: { text: '', index: 0 }
+    text: '',
+    index: 0
   },
   observance: null,
   // When active: { name, glyph, treatment, palette, slotEntry, dateString }
@@ -611,14 +609,14 @@ const AlertModule = {
     AppState.meta.lastUpdate.alerts = Date.now();
 
     if (alertData && !prev) {
-      // Alert became active: preempt Slot B
-      RotatorModule.preempt('B', this._formatHeadline(alertData.headline));
+      // Alert became active: preempt slot
+      RotatorModule.preempt(this._formatHeadline(alertData.headline));
     } else if (alertData && prev) {
       // Alert updated: refresh preempted text
-      RotatorModule.preempt('B', this._formatHeadline(alertData.headline));
+      RotatorModule.preempt(this._formatHeadline(alertData.headline));
     } else if (!alertData && prev) {
-      // Alert cleared: release Slot B
-      RotatorModule.release('B');
+      // Alert cleared: release slot
+      RotatorModule.release();
     }
   },
 
@@ -1252,8 +1250,7 @@ const DriftEngine = {
   _phaseOffsets: {
     time:  { x: 0,   y: 100 },
     date:  { x: 200, y: 300 },
-    slotA: { x: 400, y: 500 },
-    slotB: { x: 600, y: 700 },
+    slot:  { x: 400, y: 500 },
     moon:  { x: 800, y: 900 }
   },
 
@@ -1268,8 +1265,7 @@ const DriftEngine = {
     var elements = [
       { css: 'time',   key: 'time',  cfg: d.time  },
       { css: 'date',   key: 'date',  cfg: d.date  },
-      { css: 'slot-a', key: 'slotA', cfg: d.slotA },
-      { css: 'slot-b', key: 'slotB', cfg: d.slotB },
+      { css: 'slot',   key: 'slot',  cfg: d.slot  },
       { css: 'moon',   key: 'moon',  cfg: d.moon  }
     ];
 
@@ -1301,8 +1297,7 @@ const DriftEngine = {
   _elementSizes: {
     time:    { hw: 400, hh: 80  },
     date:    { hw: 160, hh: 28  },
-    'slot-a': { hw: 210, hh: 28  },
-    'slot-b': { hw: 210, hh: 28  },
+    slot:    { hw: 210, hh: 28  },
     moon:    { hw: 71,  hh: 71  }
   },
 
@@ -1356,8 +1351,7 @@ const DriftEngine = {
   _anchorPercents: {
     time:    { x: 50, y: 44 },
     date:    { x: 50, y: 66 },
-    'slot-a': { x: 25, y: 84 },
-    'slot-b': { x: 75, y: 84 },
+    slot:    { x: 50, y: 84 },
     moon:    { x: 84, y: 12 }
   },
 
@@ -1630,21 +1624,43 @@ const KineticType = {
 };
 
 const RotatorModule = {
-  _slotAEl: null,
-  _slotBEl: null,
-  _timerA: null,
-  _timerB: null,
-  _preempted: { B: null },   // null or { text }
+  _slotEl: null,
+  _timer: null,
+  _preempted: null,   // null or { text }
+  _index: 0,
 
-  _sourcesA: [
+  _sources: [
+    // Sunrise
     function() {
       const sr = AppState.sun.sunrise;
       return sr ? 'SUNRISE ' + sr : null;
     },
+    // Weather
+    function() {
+      const w = AppState.weather;
+      if (w.condition === null || w.tempC === null) return null;
+      const labels = {
+        CLEAR: 'CLEAR', PARTLY_CLOUDY: 'PARTLY CLOUDY',
+        FOG: 'FOG', RAIN: 'RAIN', SNOW: 'SNOW', STORM: 'STORM'
+      };
+      return (labels[w.condition] || w.condition) + ' ' + w.tempC + '\u00B0';
+    },
+    // Sunset
     function() {
       const ss = AppState.sun.sunset;
       return ss ? 'SUNSET ' + ss : null;
     },
+    // AQI
+    function() {
+      const a = AppState.aqi;
+      if (a.value === null) return null;
+      const bandLabels = {
+        good: 'GOOD', moderate: 'MODERATE', unhealthy: 'UNHEALTHY',
+        very_unhealthy: 'V UNHEALTHY', hazardous: 'HAZARDOUS'
+      };
+      return 'AQI ' + a.value + ' ' + (bandLabels[a.band] || '');
+    },
+    // Daylight
     function() {
       const mins = AppState.sun.dayLengthMin;
       if (!mins) return null;
@@ -1652,8 +1668,29 @@ const RotatorModule = {
       const m = mins % 60;
       return 'DAYLIGHT ' + h + 'H ' + String(m).padStart(2, '0') + 'M';
     },
+    // Tide
     function() {
-      // Time until next sun event
+      const t = AppState.tide;
+      if (t.type === null) return null;
+      const label = t.type === 'high' ? 'HIGH TIDE' : 'LOW TIDE';
+      const h = t.heightM !== null ? t.heightM.toFixed(1) + 'M' : '';
+      let timeStr = '';
+      if (t.time) {
+        const d = new Date(t.time);
+        if (CONFIG.display.timeFormat === '12h') {
+          const hr = d.getHours() % 12 || 12;
+          const mn = String(d.getMinutes()).padStart(2, '0');
+          const ap = d.getHours() < 12 ? 'AM' : 'PM';
+          timeStr = hr + ':' + mn + ' ' + ap;
+        } else {
+          timeStr = String(d.getHours()).padStart(2, '0') + ':' +
+                    String(d.getMinutes()).padStart(2, '0');
+        }
+      }
+      return label + ' ' + h + ' ' + timeStr;
+    },
+    // Time until next sun event
+    function() {
       const now = new Date();
       const todaySr = RotatorModule._parseSunTime(AppState.sun.sunrise);
       const todaySs = RotatorModule._parseSunTime(AppState.sun.sunset);
@@ -1676,48 +1713,8 @@ const RotatorModule = {
       const h = Math.floor(diffMin / 60);
       const m = diffMin % 60;
       return label + ' ' + h + 'H ' + String(m).padStart(2, '0') + 'M';
-    }
-  ],
-
-  _sourcesB: [
-    function() {
-      const w = AppState.weather;
-      if (w.condition === null || w.tempC === null) return null;
-      const labels = {
-        CLEAR: 'CLEAR', PARTLY_CLOUDY: 'PARTLY CLOUDY',
-        FOG: 'FOG', RAIN: 'RAIN', SNOW: 'SNOW', STORM: 'STORM'
-      };
-      return (labels[w.condition] || w.condition) + ' ' + w.tempC + '\u00B0';
     },
-    function() {
-      const a = AppState.aqi;
-      if (a.value === null) return null;
-      const bandLabels = {
-        good: 'GOOD', moderate: 'MODERATE', unhealthy: 'UNHEALTHY',
-        very_unhealthy: 'V UNHEALTHY', hazardous: 'HAZARDOUS'
-      };
-      return 'AQI ' + a.value + ' ' + (bandLabels[a.band] || '');
-    },
-    function() {
-      const t = AppState.tide;
-      if (t.type === null) return null;
-      const label = t.type === 'high' ? 'HIGH TIDE' : 'LOW TIDE';
-      const h = t.heightM !== null ? t.heightM.toFixed(1) + 'M' : '';
-      let timeStr = '';
-      if (t.time) {
-        const d = new Date(t.time);
-        if (CONFIG.display.timeFormat === '12h') {
-          const hr = d.getHours() % 12 || 12;
-          const mn = String(d.getMinutes()).padStart(2, '0');
-          const ap = d.getHours() < 12 ? 'AM' : 'PM';
-          timeStr = hr + ':' + mn + ' ' + ap;
-        } else {
-          timeStr = String(d.getHours()).padStart(2, '0') + ':' +
-                    String(d.getMinutes()).padStart(2, '0');
-        }
-      }
-      return label + ' ' + h + ' ' + timeStr;
-    },
+    // Almanac
     function() {
       const a = AppState.almanac;
       if (!a) return null;
@@ -1728,6 +1725,7 @@ const RotatorModule = {
       const dayAbbr = ['SUN','MON','TUE','WED','THU','FRI','SAT'][eventDate.getDay()];
       return a.name + ' ' + dayAbbr;
     },
+    // Observance
     function() {
       var obs = AppState.observance;
       if (!obs || !obs.slotEntry) return null;
@@ -1736,50 +1734,38 @@ const RotatorModule = {
   ],
 
   init() {
-    this._slotAEl = document.getElementById('slot-a');
-    this._slotBEl = document.getElementById('slot-b');
+    this._slotEl = document.getElementById('slot');
 
     // Set initial content from first available source
-    const initA = this._nextText('A');
-    const initB = this._nextText('B');
-    this._slotAEl.textContent = initA || '';
-    this._slotBEl.textContent = initB || '';
-    KineticType.create(this._slotAEl);
-    KineticType.create(this._slotBEl);
+    const initText = this._nextText();
+    this._slotEl.textContent = initText || '';
+    KineticType.create(this._slotEl);
   },
 
   start() {
-    this._timerA = setInterval(
-      () => this._rotate('A'),
-      CONFIG.rotation.slotAHoldSec * 1000
-    );
-    this._timerB = setInterval(
-      () => this._rotate('B'),
-      CONFIG.rotation.slotBHoldSec * 1000
+    this._timer = setInterval(
+      () => this._rotate(),
+      CONFIG.rotation.slotHoldSec * 1000
     );
   },
 
-  _rotate(slot) {
-    // If this slot is preempted, skip normal rotation
-    if (this._preempted[slot]) return;
-    const text = this._nextText(slot);
+  _rotate() {
+    // If slot is preempted, skip normal rotation
+    if (this._preempted) return;
+    const text = this._nextText();
     if (text === null) return; // all sources null; hold current
-    const el = slot === 'A' ? this._slotAEl : this._slotBEl;
-    const stateKey = slot === 'A' ? 'slotA' : 'slotB';
-    AppState.rotator[stateKey].text = text;
-    KineticType.animate(el, text);
+    AppState.rotator.text = text;
+    KineticType.animate(this._slotEl, text);
   },
 
-  _nextText(slot) {
-    const sources = slot === 'A' ? this._sourcesA : this._sourcesB;
-    const stateKey = slot === 'A' ? 'slotA' : 'slotB';
-    const state = AppState.rotator[stateKey];
+  _nextText() {
+    const sources = this._sources;
     const len = sources.length;
 
     // Try each source starting from next index; skip nulls
     for (let attempt = 0; attempt < len; attempt++) {
-      state.index = (state.index + 1) % len;
-      const text = sources[state.index]();
+      AppState.rotator.index = (AppState.rotator.index + 1) % len;
+      const text = sources[AppState.rotator.index]();
       if (text !== null) return text;
     }
     return null;
@@ -1801,72 +1787,51 @@ const RotatorModule = {
     return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
   },
 
-  preempt(slot, text) {
-    const key = slot.toUpperCase();
-    this._preempted[key] = { text: text };
+  preempt(text) {
+    this._preempted = { text: text };
 
     // Immediately display alert text
-    this.transition(key === 'A' ? 'A' : 'B', text);
+    AppState.rotator.text = text;
+    KineticType.animate(this._slotEl, text);
 
-    // Replace Slot B timer with doubled hold time
-    if (key === 'B') {
-      clearInterval(this._timerB);
-      this._timerB = setInterval(
-        () => this._rotatePreempted('B'),
-        CONFIG.rotation.slotBHoldSec * 2 * 1000   // 72s
-      );
-    }
+    // Replace timer with doubled hold time (64s)
+    clearInterval(this._timer);
+    this._timer = setInterval(
+      () => this._rotatePreempted(),
+      CONFIG.rotation.slotHoldSec * 2 * 1000
+    );
   },
 
-  release(slot) {
-    const key = slot.toUpperCase();
-    this._preempted[key] = null;
+  release() {
+    this._preempted = null;
 
-    // Restore normal Slot B timer
-    if (key === 'B') {
-      clearInterval(this._timerB);
-      this._timerB = setInterval(
-        () => this._rotate('B'),
-        CONFIG.rotation.slotBHoldSec * 1000   // 36s
-      );
-      // Immediately rotate to next normal source
-      this._rotate('B');
-    }
+    // Restore normal timer
+    clearInterval(this._timer);
+    this._timer = setInterval(
+      () => this._rotate(),
+      CONFIG.rotation.slotHoldSec * 1000
+    );
+    // Immediately rotate to next normal source
+    this._rotate();
   },
 
-  _rotatePreempted(slot) {
-    const key = slot.toUpperCase();
-    const p = this._preempted[key];
-    if (!p) return;
+  _rotatePreempted() {
+    if (!this._preempted) return;
     // Re-display the alert text (triggers split-flap animation for visual refresh)
-    this.transition(key === 'A' ? 'A' : 'B', p.text);
-  },
-
-  transition(slot, newValue) {
-    const el = slot === 'A' ? this._slotAEl : this._slotBEl;
-    const stateKey = slot === 'A' ? 'slotA' : 'slotB';
-    AppState.rotator[stateKey].text = newValue;
-    KineticType.animate(el, newValue);
+    AppState.rotator.text = this._preempted.text;
+    KineticType.animate(this._slotEl, this._preempted.text);
   },
 
   // Called by data modules after their first fetch completes.
-  // If a slot is still blank, fill it with the first available source text.
+  // If slot is still blank, fill it with the first available source text.
   refresh() {
-    if (!this._slotAEl || !this._slotBEl) return;
-    if (AppState.rotator.slotA.text === '') {
-      const text = this._nextText('A');
+    if (!this._slotEl) return;
+    if (AppState.rotator.text === '') {
+      const text = this._nextText();
       if (text !== null) {
-        AppState.rotator.slotA.text = text;
-        this._slotAEl.textContent = text;
-        KineticType.create(this._slotAEl);
-      }
-    }
-    if (AppState.rotator.slotB.text === '') {
-      const text = this._nextText('B');
-      if (text !== null) {
-        AppState.rotator.slotB.text = text;
-        this._slotBEl.textContent = text;
-        KineticType.create(this._slotBEl);
+        AppState.rotator.text = text;
+        this._slotEl.textContent = text;
+        KineticType.create(this._slotEl);
       }
     }
   }

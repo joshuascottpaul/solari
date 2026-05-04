@@ -55,8 +55,7 @@ echo "--- element IDs ---"
 check 'id="time"'                         'id="time"'
 check 'id="date"'                         'id="date"'
 check 'id="moon-disc"'                    'id="moon-disc"'
-check 'id="slot-a"'                       'id="slot-a"'
-check 'id="slot-b"'                       'id="slot-b"'
+check 'id="slot"'                         'id="slot"'
 check 'id="refresher-overlay"'            'id="refresher-overlay"'
 
 echo ""
