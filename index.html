@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0a0a0a">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@200&display=swap">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:,">
+  <title>Solari</title>
+</head>
+<body>
+  <main id="display">
+    <svg id="moon-disc" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="50" cy="50" r="48" fill="var(--type-primary)" opacity="0.18"/>
+    </svg>
+    <div id="time">
+      <span class="hours">2</span><span class="colon">:</span><span class="minutes">32</span><span class="ampm">PM</span>
+    </div>
+    <div id="date">
+      <span class="glyph"></span><span class="text">Wednesday &middot; April 27</span>
+    </div>
+    <div id="slot-a" class="slot">SUNSET 8:32 PM</div>
+    <div id="slot-b" class="slot">CLEAR 18°</div>
+    <div id="refresher-overlay"></div>
+  </main>
+  <script src="lib/perlin.js"></script>
+  <script src="lib/suncalc.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
