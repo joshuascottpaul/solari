@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: verify the total deployed bundle stays under 250 KB
+  # ---------------------------------------------------------------------------
+  bundle-size:
+    name: Bundle size check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check bundle size
+        run: |
+          chmod +x tests/check-bundle-size.sh
+          tests/check-bundle-size.sh
+
+  # ---------------------------------------------------------------------------
+  # Job 2: verify index.html has required meta tags, script tags, and IDs
+  # ---------------------------------------------------------------------------
+  html-check:
+    name: HTML validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check HTML structure
+        run: |
+          chmod +x tests/check-html.sh
+          tests/check-html.sh
+
+  # ---------------------------------------------------------------------------
+  # Job 3: verify app.js parses without syntax errors
+  # ---------------------------------------------------------------------------
+  lint:
+    name: JS syntax check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # node is pre-installed on ubuntu-latest; no setup needed for a syntax
+      # check. If a specific version is ever required, add setup-node here.
+      - name: Check app.js syntax
+        run: node --check app.js
+
+      - name: Check lib/perlin.js syntax
+        run: node --check lib/perlin.js
+
+      - name: Check lib/suncalc.js syntax
+        run: node --check lib/suncalc.js
