@@ -30,8 +30,8 @@
   --time-x: 50%;  --time-y: 44%;
   --moon-x: 84%;  --moon-y: 12%;
   --date-x: 50%;  --date-y: 66%;
-  --slot-a-x: 32%; --slot-a-y: 84%;
-  --slot-b-x: 68%; --slot-b-y: 84%;
+  --slot-a-x: 25%; --slot-a-y: 84%;
+  --slot-b-x: 75%; --slot-b-y: 84%;
 
   /* Drift offsets -- all 0 until Phase 7 */
   --time-dx: 0px;  --time-dy: 0px;

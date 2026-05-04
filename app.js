@@ -1301,8 +1301,8 @@ const DriftEngine = {
   _elementSizes: {
     time:    { hw: 400, hh: 80  },
     date:    { hw: 160, hh: 28  },
-    'slot-a': { hw: 160, hh: 28  },
-    'slot-b': { hw: 160, hh: 28  },
+    'slot-a': { hw: 210, hh: 28  },
+    'slot-b': { hw: 210, hh: 28  },
     moon:    { hw: 71,  hh: 71  }
   },
 
@@ -1356,8 +1356,8 @@ const DriftEngine = {
   _anchorPercents: {
     time:    { x: 50, y: 44 },
     date:    { x: 50, y: 66 },
-    'slot-a': { x: 32, y: 84 },
-    'slot-b': { x: 68, y: 84 },
+    'slot-a': { x: 25, y: 84 },
+    'slot-b': { x: 75, y: 84 },
     moon:    { x: 84, y: 12 }
   },
 
