@@ -27,11 +27,11 @@
   --lum-mod: 1;
 
   /* Position vars (SDD 17) */
-  --time-x: 50%;  --time-y: 47%;
-  --moon-x: 84%;  --moon-y: 18%;
-  --date-x: 50%;  --date-y: 58%;
-  --slot-a-x: 30%; --slot-a-y: 78%;
-  --slot-b-x: 70%; --slot-b-y: 78%;
+  --time-x: 50%;  --time-y: 44%;
+  --moon-x: 84%;  --moon-y: 12%;
+  --date-x: 50%;  --date-y: 66%;
+  --slot-a-x: 32%; --slot-a-y: 84%;
+  --slot-b-x: 68%; --slot-b-y: 84%;
 
   /* Drift offsets -- all 0 until Phase 7 */
   --time-dx: 0px;  --time-dy: 0px;
@@ -64,7 +64,7 @@ html, body {
 #time       { font-size: 14vw; }
 #time .colon { font-size: 11.5vw; }
 #time .ampm  { font-size: 3.2vw; }
-#date       { font-size: 2.0vw; }
+#date       { font-size: 4.0vw; }
 
 /* Positioning -- all absolute, CSS var indirection */
 #time {
@@ -107,12 +107,15 @@ html, body {
 }
 
 .slot {
-  font-size: 2.0vw;
+  font-size: 3.6vw;
   color: var(--type-secondary);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
 }
+
+.slot .label { font-size: 2.2vw; }
+.slot .value { font-size: 3.6vw; }
 
 #time, #date, .slot {
   filter: brightness(var(--lum-mod));

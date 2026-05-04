@@ -30,11 +30,11 @@ const CONFIG = {
     almanacHorizonDays: 7
   },
   drift: {
-    time:  { ampX: 80, ampY: 60, periodSec: 117 },
-    date:  { ampX: 24, ampY: 14, periodSec: 89  },
-    slotA: { ampX: 18, ampY: 14, periodSec: 143 },
-    slotB: { ampX: 18, ampY: 14, periodSec: 101 },
-    moon:  { ampX: 40, ampY: 25, periodSec: 73  },
+    time:  { ampX: 60, ampY: 50, periodSec: 117 },
+    date:  { ampX: 20, ampY: 12, periodSec: 89  },
+    slotA: { ampX: 16, ampY: 12, periodSec: 143 },
+    slotB: { ampX: 16, ampY: 12, periodSec: 101 },
+    moon:  { ampX: 30, ampY: 20, periodSec: 73  },
     pixelShiftIntervalMin: 6,
     pixelShiftAmplitude: 4
   },
@@ -64,13 +64,13 @@ const CONFIG = {
     timeIntervalHours: 3,
     timeTransitionSec: 60,
     timeHomes: [
-      [50, 47], [35, 42], [65, 42],
-      [50, 55], [40, 50], [60, 50]
+      [50, 44], [35, 38], [65, 38],
+      [50, 52], [40, 46], [60, 46]
     ],
     moonIntervalHours: 6,
     moonTransitionSec: 60,
     moonHomes: [
-      [84, 18], [16, 18], [84, 78], [16, 78]
+      [84, 12], [16, 12], [84, 62], [16, 62]
     ]
   }
 };
@@ -1300,9 +1300,9 @@ const DriftEngine = {
   // Used to keep elements fully on-screen with a 10px inset margin.
   _elementSizes: {
     time:    { hw: 400, hh: 80  },
-    date:    { hw: 120, hh: 16  },
-    'slot-a': { hw: 140, hh: 16  },
-    'slot-b': { hw: 140, hh: 16  },
+    date:    { hw: 160, hh: 28  },
+    'slot-a': { hw: 160, hh: 28  },
+    'slot-b': { hw: 160, hh: 28  },
     moon:    { hw: 71,  hh: 71  }
   },
 
@@ -1354,11 +1354,11 @@ const DriftEngine = {
   },
 
   _anchorPercents: {
-    time:    { x: 50, y: 47 },
-    date:    { x: 50, y: 58 },
-    'slot-a': { x: 30, y: 78 },
-    'slot-b': { x: 70, y: 78 },
-    moon:    { x: 84, y: 18 }
+    time:    { x: 50, y: 44 },
+    date:    { x: 50, y: 66 },
+    'slot-a': { x: 32, y: 84 },
+    'slot-b': { x: 68, y: 84 },
+    moon:    { x: 84, y: 12 }
   },
 
   _resolveAnchorX(cssPrefix, vw) {
