@@ -129,6 +129,18 @@ const AppState = {
   }
 };
 
+function _formatTime(date) {
+  if (CONFIG.display.timeFormat === '12h') {
+    const h = date.getHours() % 12 || 12;
+    const m = String(date.getMinutes()).padStart(2, '0');
+    const ap = date.getHours() < 12 ? 'AM' : 'PM';
+    return h + ':' + m + ' ' + ap;
+  }
+  const h = String(date.getHours()).padStart(2, '0');
+  const m = String(date.getMinutes()).padStart(2, '0');
+  return h + ':' + m;
+}
+
 const ResilienceManager = {
   async fetch(url, opts = {}) {
     const maxAttempts = 3;
@@ -182,8 +194,6 @@ const ResilienceManager = {
 };
 
 const ClockModule = {
-  _expected: 0,
-
   init() {},
 
   start() {
@@ -287,15 +297,7 @@ const SunModule = {
   },
 
   _formatTime(date) {
-    if (CONFIG.display.timeFormat === '12h') {
-      const h = date.getHours() % 12 || 12;
-      const m = String(date.getMinutes()).padStart(2, '0');
-      const ap = date.getHours() < 12 ? 'AM' : 'PM';
-      return h + ':' + m + ' ' + ap;
-    }
-    const h = String(date.getHours()).padStart(2, '0');
-    const m = String(date.getMinutes()).padStart(2, '0');
-    return h + ':' + m;
+    return _formatTime(date);
   }
 };
 
@@ -312,8 +314,6 @@ const WeatherModule = {
     71: 'SNOW', 73: 'SNOW', 75: 'SNOW', 77: 'SNOW', 85: 'SNOW', 86: 'SNOW',
     95: 'STORM', 96: 'STORM', 99: 'STORM'
   },
-
-  init() {},
 
   start() {
     this.fetch();
@@ -392,8 +392,6 @@ const AirQualityModule = {
     [201, 500, 'hazardous']
   ],
 
-  init() {},
-
   start() {
     this.fetch();
     this._intervalId = setInterval(
@@ -446,8 +444,6 @@ const TideModule = {
   _intervalId: null,
   _events: [],           // cached array of tide events from last fetch
   _corsAvailable: null,  // true | false | null (untested)
-
-  init() {},
 
   start() {
     this._fetchAndUpdate();
@@ -585,8 +581,6 @@ const AlertModule = {
   _intervalId: null,
   _corsAvailable: null,   // true | false | null (untested)
 
-  init() {},
-
   start() {
     this._fetchAndUpdate();
     this._intervalId = setInterval(
@@ -608,14 +602,9 @@ const AlertModule = {
     AppState.alert = alertData;
     AppState.meta.lastUpdate.alerts = Date.now();
 
-    if (alertData && !prev) {
-      // Alert became active: preempt slot
+    if (alertData) {
       RotatorModule.preempt(this._formatHeadline(alertData.headline));
-    } else if (alertData && prev) {
-      // Alert updated: refresh preempted text
-      RotatorModule.preempt(this._formatHeadline(alertData.headline));
-    } else if (!alertData && prev) {
-      // Alert cleared: release slot
+    } else if (prev) {
       RotatorModule.release();
     }
   },
@@ -825,9 +814,6 @@ const AlmanacModule = {
     return null;
   },
 
-  next7Days() {
-    return AppState.almanac;
-  }
 };
 
 const ObservanceModule = {
@@ -1259,19 +1245,19 @@ const DriftEngine = {
     this._startTime = performance.now() / 1000;
 
     // Register all five elements
-    var d = CONFIG.drift;
+    const d = CONFIG.drift;
     this._entries = [];
 
-    var elements = [
+    const elements = [
       { css: 'time',   key: 'time',  cfg: d.time  },
       { css: 'date',   key: 'date',  cfg: d.date  },
       { css: 'slot',   key: 'slot',  cfg: d.slot  },
       { css: 'moon',   key: 'moon',  cfg: d.moon  }
     ];
 
-    for (var i = 0; i < elements.length; i++) {
-      var el = elements[i];
-      var phase = this._phaseOffsets[el.key];
+    for (let i = 0; i < elements.length; i++) {
+      const el = elements[i];
+      const phase = this._phaseOffsets[el.key];
       this._entries.push({
         cssPrefix: el.css,
         ampX: el.cfg.ampX,
@@ -1302,26 +1288,26 @@ const DriftEngine = {
   },
 
   _loop() {
-    var t = performance.now() / 1000 - this._startTime;
-    var root = this._rootStyle;
-    var shiftX = this._shiftDx;
-    var shiftY = this._shiftDy;
-    var vw = window.innerWidth;
-    var vh = window.innerHeight;
-    var margin = 10;
+    const t = performance.now() / 1000 - this._startTime;
+    const root = this._rootStyle;
+    const shiftX = this._shiftDx;
+    const shiftY = this._shiftDy;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const margin = 10;
 
-    for (var i = 0; i < this._entries.length; i++) {
-      var e = this._entries[i];
-      var sampleX = t / e.periodSec + e.phaseX;
-      var sampleY = t / e.periodSec + e.phaseY;
-      var dx = e.ampX * perlin1d(sampleX) + shiftX;
-      var dy = e.ampY * perlin1d(sampleY) + shiftY;
+    for (let i = 0; i < this._entries.length; i++) {
+      const e = this._entries[i];
+      const sampleX = t / e.periodSec + e.phaseX;
+      const sampleY = t / e.periodSec + e.phaseY;
+      let dx = e.ampX * perlin1d(sampleX) + shiftX;
+      let dy = e.ampY * perlin1d(sampleY) + shiftY;
 
       // Viewport clamping: keep the element's bounding box within a 10px inset
-      var size = this._elementSizes[e.cssPrefix];
+      const size = this._elementSizes[e.cssPrefix];
       if (size) {
-        var anchorX = e._anchorPxX;
-        var anchorY = e._anchorPxY;
+        let anchorX = e._anchorPxX;
+        let anchorY = e._anchorPxY;
         // Recompute anchor positions periodically (viewport may resize)
         if (anchorX === undefined || this._lastVW !== vw || this._lastVH !== vh) {
           anchorX = this._resolveAnchorX(e.cssPrefix, vw);
@@ -1329,10 +1315,10 @@ const DriftEngine = {
           e._anchorPxX = anchorX;
           e._anchorPxY = anchorY;
         }
-        var minDx = margin + size.hw - anchorX;
-        var maxDx = vw - margin - size.hw - anchorX;
-        var minDy = margin + size.hh - anchorY;
-        var maxDy = vh - margin - size.hh - anchorY;
+        const minDx = margin + size.hw - anchorX;
+        const maxDx = vw - margin - size.hw - anchorX;
+        const minDy = margin + size.hh - anchorY;
+        const maxDy = vh - margin - size.hh - anchorY;
         if (dx < minDx) dx = minDx;
         if (dx > maxDx) dx = maxDx;
         if (dy < minDy) dy = minDy;
@@ -1431,34 +1417,27 @@ const MacroShifter = {
     this._applyMoon(true);
   },
 
-  _applyTime(withTransition) {
-    var home = CONFIG.macroShift.timeHomes[this._timeIndex];
-    var el = document.getElementById('time');
+  _applyHome(elementId, home, transitionSec, anchorKey, withTransition) {
+    var el = document.getElementById(elementId);
     if (!el) return;
     if (withTransition) {
-      var sec = CONFIG.macroShift.timeTransitionSec;
-      el.style.transition = 'left ' + sec + 's ease-in-out, top ' + sec + 's ease-in-out';
+      el.style.transition = 'left ' + transitionSec + 's ease-in-out, top ' + transitionSec + 's ease-in-out';
     } else {
       el.style.transition = 'none';
     }
     el.style.left = home[0] + '%';
     el.style.top = home[1] + '%';
-    DriftEngine.updateAnchor('time', home[0], home[1]);
+    DriftEngine.updateAnchor(anchorKey, home[0], home[1]);
+  },
+
+  _applyTime(withTransition) {
+    var home = CONFIG.macroShift.timeHomes[this._timeIndex];
+    this._applyHome('time', home, CONFIG.macroShift.timeTransitionSec, 'time', withTransition);
   },
 
   _applyMoon(withTransition) {
     var home = CONFIG.macroShift.moonHomes[this._moonIndex];
-    var el = document.getElementById('moon-disc');
-    if (!el) return;
-    if (withTransition) {
-      var sec = CONFIG.macroShift.moonTransitionSec;
-      el.style.transition = 'left ' + sec + 's ease-in-out, top ' + sec + 's ease-in-out';
-    } else {
-      el.style.transition = 'none';
-    }
-    el.style.left = home[0] + '%';
-    el.style.top = home[1] + '%';
-    DriftEngine.updateAnchor('moon', home[0], home[1]);
+    this._applyHome('moon-disc', home, CONFIG.macroShift.moonTransitionSec, 'moon', withTransition);
   }
 };
 
@@ -1676,16 +1655,7 @@ const RotatorModule = {
       const h = t.heightM !== null ? t.heightM.toFixed(1) + 'M' : '';
       let timeStr = '';
       if (t.time) {
-        const d = new Date(t.time);
-        if (CONFIG.display.timeFormat === '12h') {
-          const hr = d.getHours() % 12 || 12;
-          const mn = String(d.getMinutes()).padStart(2, '0');
-          const ap = d.getHours() < 12 ? 'AM' : 'PM';
-          timeStr = hr + ':' + mn + ' ' + ap;
-        } else {
-          timeStr = String(d.getHours()).padStart(2, '0') + ':' +
-                    String(d.getMinutes()).padStart(2, '0');
-        }
+        timeStr = _formatTime(new Date(t.time));
       }
       return label + ' ' + h + ' ' + timeStr;
     },
