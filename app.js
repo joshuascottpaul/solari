@@ -131,6 +131,7 @@ const AppState = {
   // When active: { name, glyph, treatment, palette, slotEntry, dateString }
   meta: {
     bootedAt: null,
+    updateAvailable: false,
     lastUpdate: {}
   }
 };
@@ -1782,31 +1783,64 @@ const RotatorModule = {
 const VersionOverlay = {
   _el: null,
   _timerId: null,
+  _pollId: null,
+  _swReg: null,
+  _deployedHash: null,   // baked-in hash, never overwritten
+  _liveHash: null,       // latest hash from GitHub API
+  _liveDate: null,
+  _prompted: false,      // true after showing "UPDATE AVAILABLE"
 
   init() {
     const moon = document.getElementById('moon-disc');
     if (!moon) return;
-    this._fetchLiveHash();
+
+    this._deployedHash = CONFIG.build.hash;
+    this._checkForUpdate();
+    this._pollId = setInterval(() => this._checkForUpdate(), 60 * 60 * 1000);
+    this._registerSW();
+
     // Use touchend on touch devices, click on mouse -- avoids double-fire on iPad Safari
     const evType = ('ontouchstart' in window) ? 'touchend' : 'click';
     moon.addEventListener(evType, (e) => {
       e.preventDefault();
-      this._show();
+      this._onTap();
     });
   },
 
-  _fetchLiveHash() {
+  _registerSW() {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => { this._swReg = reg; })
+      .catch(() => {});
+  },
+
+  _checkForUpdate() {
     const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), 5000);
+    const timer = setTimeout(() => ctrl.abort(), 5000);
     fetch('https://api.github.com/repos/joshuascottpaul/solari/commits/master',
           { signal: ctrl.signal })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
+        clearTimeout(timer);
         if (!data) return;
-        CONFIG.build.hash = data.sha.slice(0, 7);
-        CONFIG.build.date = data.commit.committer.date.slice(0, 10);
+        this._liveHash = data.sha.slice(0, 7);
+        this._liveDate = data.commit.committer.date.slice(0, 10);
+
+        if (this._liveHash !== this._deployedHash) {
+          AppState.meta.updateAvailable = true;
+          if (this._swReg) this._swReg.update().catch(() => {});
+        }
       })
-      .catch(() => {});  // fall back to hardcoded values
+      .catch(() => { clearTimeout(timer); });
+  },
+
+  _onTap() {
+    // Second tap after seeing "UPDATE AVAILABLE": reload
+    if (AppState.meta.updateAvailable && this._prompted) {
+      location.reload();
+      return;
+    }
+    this._show();
   },
 
   _show() {
@@ -1815,8 +1849,17 @@ const VersionOverlay = {
       this._el.className = 'version-overlay';
       document.body.appendChild(this._el);
     }
-    const b = CONFIG.build;
-    this._el.textContent = 'V' + b.version + ' \u00B7 ' + b.hash + ' \u00B7 ' + b.date;
+
+    if (AppState.meta.updateAvailable) {
+      this._el.textContent = 'UPDATE AVAILABLE \u00B7 TAP TO RELOAD';
+      this._prompted = true;
+    } else {
+      const b = CONFIG.build;
+      const hash = this._liveHash || b.hash;
+      const date = this._liveDate || b.date;
+      this._el.textContent = 'V' + b.version + ' \u00B7 ' + hash + ' \u00B7 ' + date;
+      this._prompted = false;
+    }
     this._el.style.opacity = '1';
 
     if (this._timerId) clearTimeout(this._timerId);
