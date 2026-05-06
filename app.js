@@ -469,8 +469,11 @@ const TideModule = {
 
   next() {
     const now = Date.now();
-    const ev = this._events.find(e => new Date(e.time).getTime() > now);
-    return ev || null;
+    const future = this._events.find(e => new Date(e.time).getTime() > now);
+    if (future) return future;
+    // No future events; show the most recent past event
+    if (this._events.length > 0) return this._events[this._events.length - 1];
+    return null;
   },
 
   _applyNext() {
@@ -1109,9 +1112,11 @@ const SkyColorModule = {
       rgb = this._applyWeatherMod(rgb, this._weatherMod[cond]);
     }
 
-    // Phase 8: AQI hue shift for unhealthy air
+    // Phase 8: AQI color modulation
     const aqiBand = AppState.aqi.band;
-    if (aqiBand === 'unhealthy' || aqiBand === 'very_unhealthy' || aqiBand === 'hazardous') {
+    if (aqiBand === 'moderate') {
+      rgb = this._applyWeatherMod(rgb, [0.95, 0, 8]);   // subtle warmth
+    } else if (aqiBand === 'unhealthy' || aqiBand === 'very_unhealthy' || aqiBand === 'hazardous') {
       rgb = this._applyWeatherMod(rgb, [1.0, 0, 30]);
     }
 
@@ -1609,10 +1614,15 @@ const RotatorModule = {
   _index: 0,
 
   _sources: [
-    // Sunrise
+    // Next sun event: shows whichever of sunrise/sunset is next
     function() {
-      const sr = AppState.sun.sunrise;
-      return sr ? 'SUNRISE ' + sr : null;
+      const now = new Date();
+      const sr = RotatorModule._parseSunTime(AppState.sun.sunrise);
+      const ss = RotatorModule._parseSunTime(AppState.sun.sunset);
+      if (!sr || !ss) return null;
+      if (now < sr) return 'SUNRISE ' + AppState.sun.sunrise;
+      if (now < ss) return 'SUNSET ' + AppState.sun.sunset;
+      return null;  // after sunset, skip -- "SUNRISE IN" countdown covers this window
     },
     // Weather
     function() {
@@ -1623,11 +1633,6 @@ const RotatorModule = {
         FOG: 'FOG', RAIN: 'RAIN', SNOW: 'SNOW', STORM: 'STORM'
       };
       return (labels[w.condition] || w.condition) + ' ' + w.tempC + '\u00B0';
-    },
-    // Sunset
-    function() {
-      const ss = AppState.sun.sunset;
-      return ss ? 'SUNSET ' + ss : null;
     },
     // AQI
     function() {
@@ -1841,7 +1846,7 @@ const DisplayModule = {
     if (obs) {
       this._els.dateText.textContent = obs.dateString;
     } else {
-      this._els.dateText.textContent = d.dayOfWeek + ' \u00B7 ' + d.month + ' ' + d.day;
+      this._els.dateText.textContent = d.dayOfWeek + ' \u00B7 ' + d.month + ' ' + d.day + ' \u00B7 ' + d.year;
     }
 
     // Moon disc: re-render only when phase value changes

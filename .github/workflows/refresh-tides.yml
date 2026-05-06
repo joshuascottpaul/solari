@@ -1,0 +1,95 @@
+name: Refresh tide predictions
+
+on:
+  schedule:
+    # Every Monday at 06:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    name: Fetch and commit tide data
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Compute ISO8601 date range: now to +90 days. Node is pre-installed.
+      - name: Fetch tide predictions from DFO IWLS
+        run: |
+          node - <<'EOF'
+          const { execSync } = require('child_process');
+
+          const now = new Date();
+          const future = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+
+          const from = now.toISOString();
+          const to   = future.toISOString();
+
+          const url =
+            'https://api-iwls.dfo-mpo.gc.ca/api/v1/stations/' +
+            '5cebf1de3d0f4a073c4bb994/data' +
+            '?time-series-code=wlp-hilo' +
+            '&from=' + encodeURIComponent(from) +
+            '&to='   + encodeURIComponent(to);
+
+          console.log('Fetching:', url);
+
+          // curl: fail on HTTP error, 30s connect timeout, 60s max time
+          let raw;
+          try {
+            raw = execSync(
+              `curl --fail --connect-timeout 30 --max-time 60 -s "${url}"`,
+              { encoding: 'utf8' }
+            );
+          } catch (err) {
+            console.error('DFO API request failed -- keeping existing tides.json');
+            console.error(err.message);
+            process.exit(0); // clean exit; do not overwrite good data
+          }
+
+          let events;
+          try {
+            events = JSON.parse(raw);
+          } catch (err) {
+            console.error('DFO response is not valid JSON -- keeping existing tides.json');
+            console.error(raw.slice(0, 500));
+            process.exit(0);
+          }
+
+          if (!Array.isArray(events) || events.length === 0) {
+            console.error('DFO returned empty array -- keeping existing tides.json');
+            process.exit(0);
+          }
+
+          // wlp-hilo returns pre-classified alternating high/low events.
+          // Determine whether the first event is high or low from its neighbor.
+          const firstIsHigh = events.length < 2 || events[0].value >= events[1].value;
+          const tides = events.map((ev, i) => ({
+            type: (i % 2 === 0) === firstIsHigh ? 'high' : 'low',
+            heightM: Math.round(ev.value * 10) / 10,
+            time: ev.eventDate,
+          }));
+
+          const fs = require('fs');
+          fs.writeFileSync('data/tides.json', JSON.stringify(tides, null, 2) + '\n');
+          console.log(`Wrote ${tides.length} tide events to data/tides.json`);
+          EOF
+
+      # Only commit when the file actually changed. git diff --quiet exits 0
+      # when there are no changes; we invert that to decide whether to commit.
+      - name: Commit and push if tides.json changed
+        run: |
+          git diff --quiet data/tides.json && {
+            echo "data/tides.json unchanged -- nothing to commit"
+            exit 0
+          }
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/tides.json
+          git commit -m "chore: refresh tide predictions"
+          git push
