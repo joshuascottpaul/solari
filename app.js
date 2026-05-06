@@ -57,6 +57,11 @@ const CONFIG = {
       //   slotEntry: 'JOSH BIRTHDAY' }
     ]
   },
+  build: {
+    version: '0.5',
+    hash: 'd876bb7',
+    date: '2026-05-05'
+  },
   macroShift: {
     enabled: true,
     timeIntervalHours: 3,
@@ -1812,6 +1817,40 @@ const RotatorModule = {
   }
 };
 
+const VersionOverlay = {
+  _el: null,
+  _timerId: null,
+
+  init() {
+    const moon = document.getElementById('moon-disc');
+    if (!moon) return;
+    // Use touchend on touch devices, click on mouse -- avoids double-fire on iPad Safari
+    const evType = ('ontouchstart' in window) ? 'touchend' : 'click';
+    moon.addEventListener(evType, (e) => {
+      e.preventDefault();
+      this._show();
+    });
+  },
+
+  _show() {
+    if (!this._el) {
+      this._el = document.createElement('div');
+      this._el.className = 'version-overlay';
+      document.body.appendChild(this._el);
+    }
+    const b = CONFIG.build;
+    this._el.textContent = 'V' + b.version + ' \u00B7 ' + b.hash + ' \u00B7 ' + b.date;
+    this._el.style.opacity = '1';
+
+    // Reset timer if already visible
+    if (this._timerId) clearTimeout(this._timerId);
+    this._timerId = setTimeout(() => {
+      this._el.style.opacity = '0';
+      this._timerId = null;
+    }, 4000);
+  }
+};
+
 const DisplayModule = {
   _els: {},
 
@@ -1864,6 +1903,7 @@ const DisplayModule = {
   MoonModule.init();
   RefresherCycle.init();
   RotatorModule.init();            // wraps slots in char spans
+  VersionOverlay.init();            // version overlay on moon tap
   ObservanceModule.init();         // Phase 15: observance module
   AppState.meta.bootedAt = Date.now();
   ClockModule.start();

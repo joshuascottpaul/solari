@@ -124,6 +124,20 @@ html, body {
   transition: color 0.2s ease-out;
 }
 
+.version-overlay {
+  position: fixed;
+  bottom: 3vh;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.9rem;
+  font-weight: 200;
+  color: var(--type-secondary);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1s ease;
+  z-index: 50;
+}
+
 #refresher-overlay {
   position: fixed; inset: 0;
   background: #404040; opacity: 0;
