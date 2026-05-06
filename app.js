@@ -1824,12 +1824,27 @@ const VersionOverlay = {
   init() {
     const moon = document.getElementById('moon-disc');
     if (!moon) return;
+    this._fetchLiveHash();
     // Use touchend on touch devices, click on mouse -- avoids double-fire on iPad Safari
     const evType = ('ontouchstart' in window) ? 'touchend' : 'click';
     moon.addEventListener(evType, (e) => {
       e.preventDefault();
       this._show();
     });
+  },
+
+  _fetchLiveHash() {
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 5000);
+    fetch('https://api.github.com/repos/joshuascottpaul/solari/commits/master',
+          { signal: ctrl.signal })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        CONFIG.build.hash = data.sha.slice(0, 7);
+        CONFIG.build.date = data.commit.committer.date.slice(0, 10);
+      })
+      .catch(() => {});  // fall back to hardcoded values
   },
 
   _show() {
@@ -1842,7 +1857,6 @@ const VersionOverlay = {
     this._el.textContent = 'V' + b.version + ' \u00B7 ' + b.hash + ' \u00B7 ' + b.date;
     this._el.style.opacity = '1';
 
-    // Reset timer if already visible
     if (this._timerId) clearTimeout(this._timerId);
     this._timerId = setTimeout(() => {
       this._el.style.opacity = '0';
