@@ -200,8 +200,6 @@ const ResilienceManager = {
 };
 
 const ClockModule = {
-  init() {},
-
   start() {
     this._tick();
   },
@@ -262,8 +260,6 @@ const ClockModule = {
 const SunModule = {
   _intervalId: null,
 
-  init() {},
-
   start() {
     this.update();
     this._intervalId = setInterval(() => this.update(), 5 * 60 * 1000);
@@ -284,8 +280,8 @@ const SunModule = {
 
       // Sunrise and sunset
       const times = SunCalc.getTimes(now, lat, lng);
-      AppState.sun.sunrise = this._formatTime(times.sunrise);
-      AppState.sun.sunset = this._formatTime(times.sunset);
+      AppState.sun.sunrise = _formatTime(times.sunrise);
+      AppState.sun.sunset = _formatTime(times.sunset);
 
       // Day length in minutes
       const diffMs = times.sunset.getTime() - times.sunrise.getTime();
@@ -300,10 +296,6 @@ const SunModule = {
 
   _toDeg(rad) {
     return Math.round((rad * 180 / Math.PI) * 10) / 10;
-  },
-
-  _formatTime(date) {
-    return _formatTime(date);
   }
 };
 
@@ -373,12 +365,10 @@ const WeatherModule = {
   _updateSunFromAPI(daily) {
     // daily.sunrise and daily.sunset are arrays; index 0 = today
     if (daily.sunrise && daily.sunrise[0]) {
-      const sr = new Date(daily.sunrise[0]);
-      AppState.sun.sunrise = SunModule._formatTime(sr);
+      AppState.sun.sunrise = _formatTime(new Date(daily.sunrise[0]));
     }
     if (daily.sunset && daily.sunset[0]) {
-      const ss = new Date(daily.sunset[0]);
-      AppState.sun.sunset = SunModule._formatTime(ss);
+      AppState.sun.sunset = _formatTime(new Date(daily.sunset[0]));
     }
     if (daily.daylight_duration && daily.daylight_duration[0]) {
       // API returns seconds; convert to minutes
@@ -713,8 +703,6 @@ const AlmanacModule = {
   _events: null,       // cached array from almanac.json
   _intervalId: null,
 
-  init() {},
-
   start() {
     this._loadAndUpdate();
     // Recompute once per hour (moon phase scan is cheap; daily would suffice
@@ -744,7 +732,6 @@ const AlmanacModule = {
       String(now.getMonth() + 1).padStart(2, '0') + '-' +
       String(now.getDate()).padStart(2, '0');
     const todayMs = new Date(todayStr + 'T00:00:00').getTime();
-    const horizonMs = horizon * 24 * 60 * 60 * 1000;
 
     // Gather candidates: static events + computed moon events
     const candidates = [];
@@ -844,8 +831,6 @@ const ObservanceModule = {
   _astroCache: {},   // { year: { 'equinox-spring': 'MM-DD', ... } }
   _lastDate: null,
   _intervalId: null,
-
-  init() {},
 
   start() {
     this.update();
@@ -1009,8 +994,6 @@ const MoonModule = {
     'Last Quarter',     // 0.750
     'Waning Crescent'   // 0.875
   ],
-
-  init() {},
 
   start() {
     this.update();
@@ -1891,13 +1874,9 @@ const DisplayModule = {
 
 (function boot() {
   DisplayModule.init();
-  ClockModule.init();
-  SunModule.init();
-  MoonModule.init();
   RefresherCycle.init();
   RotatorModule.init();            // wraps slots in char spans
-  VersionOverlay.init();            // version overlay on moon tap
-  ObservanceModule.init();         // Phase 15: observance module
+  VersionOverlay.init();           // version overlay on moon tap
   AppState.meta.bootedAt = Date.now();
   ClockModule.start();
   SunModule.start();
