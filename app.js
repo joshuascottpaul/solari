@@ -121,6 +121,7 @@ const AppState = {
     time: null         // ISO 8601 string with timezone offset
   },
   alert: null,         // or { severity, headline, description, expires }
+  alertPreempt: null,  // or formatted headline string; rotator reads this to preempt slot
   almanac: null,       // or { name, date, daysAway }
   rotator: {
     text: '',
@@ -606,15 +607,13 @@ const AlertModule = {
       if (c) alertData = c.value;
     }
 
-    const prev = AppState.alert;
     AppState.alert = alertData;
     AppState.meta.lastUpdate.alerts = Date.now();
 
-    if (alertData) {
-      RotatorModule.preempt(this._formatHeadline(alertData.headline));
-    } else if (prev) {
-      RotatorModule.release();
-    }
+    // Write preemption state; RotatorModule reads this on each rotation tick
+    AppState.alertPreempt = alertData
+      ? this._formatHeadline(alertData.headline)
+      : null;
   },
 
   _formatHeadline(headline) {
@@ -1615,9 +1614,11 @@ const KineticType = {
 const RotatorModule = {
   _slotEl: null,
   _timer: null,
-  _preempted: null,   // null or { text }
+  _lastPreempt: null,  // tracks previous alertPreempt value for edge detection
   _index: 0,
 
+  // Complications: each returns a formatted string or null to decline.
+  // The rotator cycles through them, skipping nulls.
   _sources: [
     // Next sun event: shows whichever of sunrise/sunset is next
     function() {
@@ -1716,7 +1717,7 @@ const RotatorModule = {
   init() {
     this._slotEl = document.getElementById('slot');
 
-    // Set initial content from first available source
+    // Set initial content from first available complication
     const initText = this._nextText();
     this._slotEl.textContent = initText || '';
     KineticType.create(this._slotEl);
@@ -1730,10 +1731,23 @@ const RotatorModule = {
   },
 
   _rotate() {
-    // If slot is preempted, skip normal rotation
-    if (this._preempted) return;
+    const preempt = AppState.alertPreempt;
+
+    // Alert active: animate only when text appears or changes
+    if (preempt) {
+      if (preempt !== this._lastPreempt) {
+        this._lastPreempt = preempt;
+        AppState.rotator.text = preempt;
+        KineticType.animate(this._slotEl, preempt);
+      }
+      return;
+    }
+
+    // Alert just cleared: resume normal rotation
+    this._lastPreempt = null;
+
     const text = this._nextText();
-    if (text === null) return; // all sources null; hold current
+    if (text === null) return; // all complications null; hold current
     AppState.rotator.text = text;
     KineticType.animate(this._slotEl, text);
   },
@@ -1767,43 +1781,8 @@ const RotatorModule = {
     return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
   },
 
-  preempt(text) {
-    this._preempted = { text: text };
-
-    // Immediately display alert text
-    AppState.rotator.text = text;
-    KineticType.animate(this._slotEl, text);
-
-    // Replace timer with doubled hold time (64s)
-    clearInterval(this._timer);
-    this._timer = setInterval(
-      () => this._rotatePreempted(),
-      CONFIG.rotation.slotHoldSec * 2 * 1000
-    );
-  },
-
-  release() {
-    this._preempted = null;
-
-    // Restore normal timer
-    clearInterval(this._timer);
-    this._timer = setInterval(
-      () => this._rotate(),
-      CONFIG.rotation.slotHoldSec * 1000
-    );
-    // Immediately rotate to next normal source
-    this._rotate();
-  },
-
-  _rotatePreempted() {
-    if (!this._preempted) return;
-    // Re-display the alert text (triggers split-flap animation for visual refresh)
-    AppState.rotator.text = this._preempted.text;
-    KineticType.animate(this._slotEl, this._preempted.text);
-  },
-
   // Called by data modules after their first fetch completes.
-  // If slot is still blank, fill it with the first available source text.
+  // If slot is still blank, fill it with the first available complication.
   refresh() {
     if (!this._slotEl) return;
     if (AppState.rotator.text === '') {
