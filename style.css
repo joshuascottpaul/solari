@@ -130,7 +130,7 @@ html, body {
   bottom: 3vh;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 0.9rem;
+  font-size: 0.9vw;
   font-weight: 200;
   color: var(--type-secondary);
   pointer-events: none;

@@ -131,7 +131,6 @@ const AppState = {
   // When active: { name, glyph, treatment, palette, slotEntry, dateString }
   meta: {
     bootedAt: null,
-    updateAvailable: false,
     lastUpdate: {}
   }
 };
@@ -1788,7 +1787,9 @@ const VersionOverlay = {
   _deployedHash: null,   // baked-in hash, never overwritten
   _liveHash: null,       // latest hash from GitHub API
   _liveDate: null,
+  _updateAvailable: false,
   _prompted: false,      // true after showing "UPDATE AVAILABLE"
+  _lastShowTime: 0,      // timestamp of last _show() call for tap debounce
 
   init() {
     const moon = document.getElementById('moon-disc');
@@ -1831,7 +1832,7 @@ const VersionOverlay = {
         this._liveDate = data.commit.committer.date.slice(0, 10);
 
         if (this._liveHash !== this._deployedHash) {
-          AppState.meta.updateAvailable = true;
+          this._updateAvailable = true;
           if (this._swReg) this._swReg.update().catch(() => {});
         }
       })
@@ -1839,8 +1840,11 @@ const VersionOverlay = {
   },
 
   _onTap() {
+    // Debounce: ignore taps within 500ms of the last _show() call
+    if (Date.now() - this._lastShowTime < 500) return;
+
     // Second tap after seeing "UPDATE AVAILABLE": acknowledge and reload
-    if (AppState.meta.updateAvailable && this._prompted) {
+    if (this._updateAvailable && this._prompted) {
       try { localStorage.setItem('solari_acked_hash', this._liveHash); } catch (e) {}
       location.reload();
       return;
@@ -1855,7 +1859,9 @@ const VersionOverlay = {
       document.body.appendChild(this._el);
     }
 
-    if (AppState.meta.updateAvailable) {
+    this._lastShowTime = Date.now();
+
+    if (this._updateAvailable) {
       this._el.textContent = 'UPDATE AVAILABLE \u00B7 TAP TO RELOAD';
       this._prompted = true;
     } else {
@@ -1870,6 +1876,7 @@ const VersionOverlay = {
     if (this._timerId) clearTimeout(this._timerId);
     this._timerId = setTimeout(() => {
       this._el.style.opacity = '0';
+      this._prompted = false;
       this._timerId = null;
     }, 4000);
   }
@@ -1939,6 +1946,6 @@ const DisplayModule = {
   MacroShifter.start();            // macro position shifts for burn-in protection
   RefresherCycle.start();           // 03:00 refresher cycle + soft reload
   LuminanceBreath.start();          // Phase 14: luminance breath
-  ObservanceModule.start();        // Phase 15: observances (before RotatorModule so slot sources are available)
+  ObservanceModule.start();        // Phase 15: observances (before RotatorModule.start so data is set for first rotation tick)
   RotatorModule.start();           // begins rotation timers (after data modules)
 })();

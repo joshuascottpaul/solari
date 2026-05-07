@@ -54,3 +54,6 @@ jobs:
 
       - name: Check lib/suncalc.js syntax
         run: node --check lib/suncalc.js
+
+      - name: Check sw.js syntax
+        run: node --check sw.js
