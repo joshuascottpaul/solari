@@ -1598,7 +1598,6 @@ const RotatorModule = {
   _slotEl: null,
   _timer: null,
   _lastPreempt: null,  // tracks previous alertPreempt value for edge detection
-  _index: 0,
 
   // Complications: each returns a formatted string or null to decline.
   // The rotator cycles through them, skipping nulls.
