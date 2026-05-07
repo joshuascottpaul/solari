@@ -1794,7 +1794,11 @@ const VersionOverlay = {
     const moon = document.getElementById('moon-disc');
     if (!moon) return;
 
-    this._deployedHash = CONFIG.build.hash;
+    // Use localStorage to remember the last version we reloaded into.
+    // Without this, the hardcoded CONFIG.build.hash is always stale after
+    // a deploy, and every reload would still show "UPDATE AVAILABLE".
+    const acked = localStorage.getItem('solari_acked_hash');
+    this._deployedHash = acked || CONFIG.build.hash;
     this._checkForUpdate();
     this._pollId = setInterval(() => this._checkForUpdate(), 60 * 60 * 1000);
     this._registerSW();
@@ -1835,8 +1839,9 @@ const VersionOverlay = {
   },
 
   _onTap() {
-    // Second tap after seeing "UPDATE AVAILABLE": reload
+    // Second tap after seeing "UPDATE AVAILABLE": acknowledge and reload
     if (AppState.meta.updateAvailable && this._prompted) {
+      try { localStorage.setItem('solari_acked_hash', this._liveHash); } catch (e) {}
       location.reload();
       return;
     }

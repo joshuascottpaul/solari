@@ -17,6 +17,7 @@ The authoritative specification is `2026 04 27 10 15 PM - SDD - Ambient Display 
 - **Target: iPad Air M4 Safari, landscape, always-on.** Must run continuously for months.
 - One JS file: `app.js` (CONFIG, AppState, all modules, render loop). `data.js` exists as a placeholder but is not loaded.
 - Two vendored libs in `lib/`: `suncalc.js` (MIT, ~3 KB) and `perlin.js` (MIT, ~2 KB).
+- `sw.js`: network-first service worker, registered at boot, enables cache busting for Safari Add-to-Home-Screen installs.
 
 ## Architecture
 
@@ -28,13 +29,14 @@ The authoritative specification is `2026 04 27 10 15 PM - SDD - Ambient Display 
 - `SunModule` / `MoonModule` -- astronomical calculations via SunCalc, update every 5m / 6h
 - `SkyColorModule` -- computes CSS color vars from sun altitude + weather + observance palette
 - `ObservanceModule` -- holiday/observance system with two treatment levels (major, light) + custom dates
-- `RotatorModule` / `KineticType` -- two independent slots cycling content with split-flap transitions
+- `RotatorModule` / `KineticType` -- single slot cycling through complications (watch-face analogy) with split-flap transitions; reads `AppState.alertPreempt` each tick to preempt with alert headlines
 - `DriftEngine` -- single rAF loop driving Perlin-noise drift for all elements (coprime periods)
 - `MacroShifter` -- relocates time (6 positions, every 3h) and moon (4 corners, every 6h)
 - `RefresherCycle` -- 03:00 daily LCD burn-in mitigation (fade to #404040 for 30s)
 - `LuminanceBreath` -- CSS `--lum-mod` oscillates +/-15% on 30-min sine wave
 - `ResilienceManager` -- fetch wrapper with retry/backoff + localStorage caching
 - `DisplayModule` -- reads AppState, writes DOM; called every tick
+- `VersionOverlay` -- tap moon disc to see build hash and deploy date; polls GitHub API hourly; shows "UPDATE AVAILABLE · TAP TO RELOAD" when a new commit is detected on master
 
 ## Phase Status
 
@@ -81,9 +83,10 @@ Eight independent layers -- defense in depth. See SDD Section 9 for full details
 
 - **Open-Meteo Forecast** (weather + sun): `api.open-meteo.com/v1/forecast` -- Vancouver coords, 15-min poll
 - **Open-Meteo Air Quality**: `air-quality-api.open-meteo.com/v1/air-quality` -- 30-min poll
-- **DFO IWLS Tides** (Point Atkinson): `api-iwls.dfo-mpo.gc.ca` -- 6h poll, currently returning 404; fallback to `/data/tides.json`
+- **DFO IWLS Tides** (Point Atkinson): `api-iwls.dfo-mpo.gc.ca` -- 6h poll, currently returning 404; fallback to `/data/tides.json` (refreshed weekly by GitHub Actions)
 - **EC Weather Alerts** (Metro Vancouver): `weather.gc.ca/rss/battleboard/bcrm30_e.xml` -- 15-min poll, CORS blocked; fallback to `/data/alerts.json`
-- **CORS status:** Both DFO and EC feeds fail CORS. Static fallback files in `/data/` are active. Plan B (GitHub Actions cron) not yet implemented.
+- **CORS status:** DFO and EC feeds both fail CORS. DFO tides are now kept current via a weekly GitHub Actions workflow (`.github/workflows/refresh-tides.yml`). EC alerts remain on a static fallback.
+- **GitHub Actions:** `refresh-tides.yml` runs every Monday at 06:00 UTC, fetches 90 days of predictions from DFO IWLS, and auto-commits updated `data/tides.json`. No-ops cleanly if the fetch fails or the data is unchanged.
 
 ## Development
 
@@ -101,17 +104,21 @@ Test on iPad Safari for final verification. Layout uses vw/vh units for 1180x820
 index.html
 style.css
 app.js          # CONFIG + AppState + all modules + render loop
+sw.js           # network-first service worker for Safari Add-to-Home-Screen
 data.js         # placeholder (not loaded)
 lib/
   suncalc.js    # vendored, MIT, ~9 KB
   perlin.js     # project-authored, MIT, ~2 KB
 data/
   almanac.json  # meteor showers, eclipses 2026-2030
-  tides.json    # fallback tide data (DFO API unavailable)
+  tides.json    # tide data, refreshed weekly via GitHub Actions (DFO IWLS)
   alerts.json   # fallback alert data (EC CORS blocked)
 manifest.json
 icons/          # empty (falls back to screenshot icon)
-docs/           # phase implementation specs
+docs/           # phase implementation specs and design notes
+.github/
+  workflows/
+    refresh-tides.yml   # weekly cron: fetches and commits DFO tide predictions
 ```
 
 ## Style Notes
