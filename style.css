@@ -26,20 +26,28 @@
   --type-accent: #F4C56C;
   --lum-mod: 1;
 
-  /* Position vars (SDD 17) */
+  /* Phase 16: stage primitive (fixed 1180x820, scaled by transform) */
+  --stage-w: 1180;
+  --stage-h: 820;
+  --stage-scale: 1;
+
+  /* Position vars (SDD 17). Percentages resolve against #stage in Phase 16. */
   --time-x: 50%;  --time-y: 44%;
   --moon-x: 84%;  --moon-y: 12%;
   --date-x: 50%;  --date-y: 66%;
   --slot-x: 50%; --slot-y: 84%;
 
-  /* Drift offsets -- all 0 until Phase 7 */
+  /* Drift offsets -- updated every frame by DriftEngine */
   --time-dx: 0px;  --time-dy: 0px;
   --moon-dx: 0px;  --moon-dy: 0px;
   --date-dx: 0px;  --date-dy: 0px;
   --slot-dx: 0px; --slot-dy: 0px;
 
-  /* SDD 17.1: @property needed for custom property transitions (Phase 5) */
-  transition: --type-primary 60s linear, --type-secondary 60s linear, --type-accent 60s linear;
+  /* Phase 16: reserved drift channels for Phases 17-20 (declared, unused) */
+  --sun-dx: 0px;          --sun-dy: 0px;
+  --horizon-dx: 0px;      --horizon-dy: 0px;
+  --departureRow-dx: 0px; --departureRow-dy: 0px;
+  --tickRail-dx: 0px;     --tickRail-dy: 0px;
 }
 
 /* Reset */
@@ -56,15 +64,35 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 
-#display { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+/* Phase 5: SkyColorModule drives slow color drift via 60s transitions.
+   Scoped to #display so the picker page (clockface.html, no #display element)
+   does not inherit the lag when the user clicks an accent swatch. */
+#display {
+  position: relative; width: 100vw; height: 100vh; overflow: hidden;
+  transition: --type-primary 60s linear, --type-secondary 60s linear, --type-accent 60s linear;
+}
 
-/* Typography sizing (vw units, SDD 17) */
-#time       { font-size: 14vw; }
-#time .colon { font-size: 11.5vw; }
-#time .ampm  { font-size: 3.2vw; }
-#date       { font-size: 4.0vw; }
+/* Phase 16: stage primitive. Fixed 1180x820 box, centred and scaled. */
+#stage {
+  position: absolute;
+  width: calc(var(--stage-w) * 1px);
+  height: calc(var(--stage-h) * 1px);
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(var(--stage-scale));
+  transform-origin: center center;
+}
 
-/* Positioning -- all absolute, CSS var indirection */
+/* Typography sizing. Phase 16: fixed pixels in stage coordinates so the CSS
+   transform scales them uniformly. Values match shipped V0 (14vw at 1180px =
+   165px; 11.5vw = 135.7px; 3.2vw = 37.76px; 4vw = 47px; 3.6vw = 42px). */
+#time       { font-size: 165px; }
+#time .colon { font-size: 136px; }
+#time .ampm  { font-size: 38px; }
+#date       { font-size: 47px; }
+
+/* Positioning -- all absolute, CSS var indirection. Percentages resolve
+   against #stage (Phase 16) instead of the viewport. */
 #time {
   position: absolute; text-align: center;
   left: var(--time-x); top: var(--time-y);
@@ -90,7 +118,7 @@ html, body {
   position: absolute; text-align: center;
   left: var(--moon-x); top: var(--moon-y);
   transform: translate(-50%, -50%) translate(var(--moon-dx), var(--moon-dy));
-  width: 12vw; height: 12vw;
+  width: 142px; height: 142px;
   transition: left 60s ease-in-out, top 60s ease-in-out;
 }
 
@@ -101,7 +129,7 @@ html, body {
 }
 
 .slot {
-  font-size: 3.6vw;
+  font-size: 42px;
   color: var(--type-secondary);
   letter-spacing: 0.08em;
   text-transform: uppercase;

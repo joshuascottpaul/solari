@@ -16,16 +16,18 @@
 </head>
 <body>
   <main id="display">
-    <svg id="moon-disc" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="50" cy="50" r="48" fill="var(--type-primary)" opacity="0.18"/>
-    </svg>
-    <div id="time">
-      <span class="hours">2</span><span class="colon">:</span><span class="minutes">32</span><span class="ampm">PM</span>
+    <div id="stage">
+      <svg id="moon-disc" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="50" cy="50" r="48" fill="var(--type-primary)" opacity="0.18"/>
+      </svg>
+      <div id="time">
+        <span class="hours">2</span><span class="colon">:</span><span class="minutes">32</span><span class="ampm">PM</span>
+      </div>
+      <div id="date">
+        <span class="glyph"></span><span class="text">Wednesday &middot; April 27</span>
+      </div>
+      <div id="slot" class="slot"></div>
     </div>
-    <div id="date">
-      <span class="glyph"></span><span class="text">Wednesday &middot; April 27</span>
-    </div>
-    <div id="slot" class="slot"></div>
     <div id="refresher-overlay"></div>
   </main>
   <script src="lib/perlin.js"></script>

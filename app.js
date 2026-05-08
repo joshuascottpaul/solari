@@ -28,13 +28,36 @@ const CONFIG = {
     cascadeStaggerMs: 70,
     almanacHorizonDays: 7
   },
-  drift: {
-    time:  { ampX: 60, ampY: 50, periodSec: 117 },
-    date:  { ampX: 20, ampY: 12, periodSec: 89  },
-    slot: { ampX: 16, ampY: 12, periodSec: 143 },
-    moon:  { ampX: 30, ampY: 20, periodSec: 73  },
-    pixelShiftIntervalMin: 6,
-    pixelShiftAmplitude: 4
+  // Phase 16: face system foundation
+  clockface: {
+    defaultFaceId: 'calm',
+    reloadOnApply: true
+  },
+  stage: {
+    width: 1180,
+    height: 820
+  },
+  // Per-element-class drift parameters. Phase 16 active: time, date, slot, moon.
+  // Reserved (unused until 17-20): sun (P20), horizon (P20), departureRow (P18), tickRail (P17).
+  // All seven periods are pairwise coprime.
+  driftClasses: {
+    time:         { ampX: 24, ampY: 18, periodSec: 117 },
+    date:         { ampX: 12, ampY: 8,  periodSec: 89  },
+    slot:         { ampX: 12, ampY: 8,  periodSec: 143 },
+    moon:         { ampX: 18, ampY: 12, periodSec: 73  },
+    sun:          { ampX: 18, ampY: 12, periodSec: 101 },
+    horizon:      { ampX: 18, ampY: 12, periodSec: 101 },
+    departureRow: { ampX: 6,  ampY: 4,  periodSec: 61  },
+    tickRail:     { ampX: 4,  ampY: 3,  periodSec: 79  }
+  },
+  pixelShift: {
+    intervalMin: 6,
+    amplitude: 4
+  },
+  tweakDefaults: {
+    accent: 'gold',
+    driftIntensity: 'normal',
+    byFace: {}
   },
   refresher: {
     enabled: true,
@@ -76,6 +99,23 @@ const CONFIG = {
       [84, 12], [16, 12], [84, 62], [16, 62]
     ]
   }
+};
+
+// Phase 16: drift intensity multipliers applied across all driftClasses.
+const DRIFT_INTENSITY_MULT = {
+  off:      0.0,
+  subtle:   0.5,
+  normal:   1.0,
+  restless: 1.5
+};
+
+// Phase 16: accent palette. `gold` is the shipped V0 value; sky/sage/paper are
+// chihiro's starting values, flagged for visual tuning in 17-20.
+const ACCENT_PALETTE = {
+  gold:  { hex: '#F4C56C', secondary: 'rgba(240, 235, 220, 0.62)' },
+  sky:   { hex: '#7FA8C9', secondary: 'rgba(220, 232, 245, 0.62)' },
+  sage:  { hex: '#9CB48A', secondary: 'rgba(225, 235, 218, 0.62)' },
+  paper: { hex: '#E8E0D0', secondary: 'rgba(240, 235, 220, 0.62)' }
 };
 
 const AppState = {
@@ -1232,29 +1272,37 @@ const DriftEngine = {
     moon:  { x: 800, y: 900 }
   },
 
+  // Phase 16: drift intensity multiplier (read from Tweaks at boot).
+  // Multiplies ampX/ampY across every entry. 0 = drift fully suppressed
+  // (pixel-shift safety net still applies). Re-applied on storage change
+  // via full reload.
+  _intensityMult: 1.0,
+
+  setIntensity(mult) {
+    this._intensityMult = (typeof mult === 'number' && mult >= 0) ? mult : 1.0;
+  },
+
   start() {
     this._rootStyle = document.documentElement.style;
     this._startTime = performance.now() / 1000;
 
-    // Register all five elements
-    const d = CONFIG.drift;
+    // Register Phase 16 active drift classes. Reserved classes (sun, horizon,
+    // departureRow, tickRail) are declared in CONFIG.driftClasses but not
+    // mounted here until their faces ship.
+    const dc = CONFIG.driftClasses;
     this._entries = [];
 
-    const elements = [
-      { css: 'time',   key: 'time',  cfg: d.time  },
-      { css: 'date',   key: 'date',  cfg: d.date  },
-      { css: 'slot',   key: 'slot',  cfg: d.slot  },
-      { css: 'moon',   key: 'moon',  cfg: d.moon  }
-    ];
+    const activeKeys = ['time', 'date', 'slot', 'moon'];
 
-    for (let i = 0; i < elements.length; i++) {
-      const el = elements[i];
-      const phase = this._phaseOffsets[el.key];
+    for (let i = 0; i < activeKeys.length; i++) {
+      const key = activeKeys[i];
+      const cfg = dc[key];
+      const phase = this._phaseOffsets[key];
       this._entries.push({
-        cssPrefix: el.css,
-        ampX: el.cfg.ampX,
-        ampY: el.cfg.ampY,
-        periodSec: el.cfg.periodSec,
+        cssPrefix: key,
+        ampX: cfg.ampX,
+        ampY: cfg.ampY,
+        periodSec: cfg.periodSec,
         phaseX: phase.x,
         phaseY: phase.y
       });
@@ -1263,7 +1311,7 @@ const DriftEngine = {
     // Start pixel-shift safety net
     this._shiftIntervalId = setInterval(
       () => this._pixelShift(),
-      d.pixelShiftIntervalMin * 60 * 1000
+      CONFIG.pixelShift.intervalMin * 60 * 1000
     );
 
     // Start rAF loop
@@ -1284,24 +1332,26 @@ const DriftEngine = {
     const root = this._rootStyle;
     const shiftX = this._shiftDx;
     const shiftY = this._shiftDy;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
+    // Phase 16: clamp against the fixed stage box, not the viewport.
+    // The CSS transform on #stage handles fit-to-viewport scaling.
+    const vw = CONFIG.stage.width;
+    const vh = CONFIG.stage.height;
     const margin = 10;
+    const mult = this._intensityMult;
 
     for (let i = 0; i < this._entries.length; i++) {
       const e = this._entries[i];
       const sampleX = t / e.periodSec + e.phaseX;
       const sampleY = t / e.periodSec + e.phaseY;
-      let dx = e.ampX * perlin1d(sampleX) + shiftX;
-      let dy = e.ampY * perlin1d(sampleY) + shiftY;
+      let dx = e.ampX * mult * perlin1d(sampleX) + shiftX;
+      let dy = e.ampY * mult * perlin1d(sampleY) + shiftY;
 
-      // Viewport clamping: keep the element's bounding box within a 10px inset
+      // Stage-box clamping: keep the element's bounding box within a 10px inset
       const size = this._elementSizes[e.cssPrefix];
       if (size) {
         let anchorX = e._anchorPxX;
         let anchorY = e._anchorPxY;
-        // Recompute anchor positions periodically (viewport may resize)
-        if (anchorX === undefined || this._lastVW !== vw || this._lastVH !== vh) {
+        if (anchorX === undefined) {
           anchorX = this._resolveAnchorX(e.cssPrefix, vw);
           anchorY = this._resolveAnchorY(e.cssPrefix, vh);
           e._anchorPxX = anchorX;
@@ -1321,11 +1371,14 @@ const DriftEngine = {
       root.setProperty('--' + e.cssPrefix + '-dy', dy.toFixed(1) + 'px');
     }
 
-    this._lastVW = vw;
-    this._lastVH = vh;
     this._rafId = requestAnimationFrame(() => this._loop());
   },
 
+  // Current stage position of each element, used to compute the drift-clamp
+  // origin. MacroShifter calls updateAnchor() when it moves time or moon.
+  // Note: these are mutable state, not the same as CONFIG.macroShift home tables.
+  // CONFIG.macroShift carries the full list of homes to cycle through; these
+  // carry only the current active position (and include date/slot, which never shift).
   _anchorPercents: {
     time:    { x: 50, y: 44 },
     date:    { x: 50, y: 66 },
@@ -1344,7 +1397,7 @@ const DriftEngine = {
   },
 
   _pixelShift() {
-    var amp = CONFIG.drift.pixelShiftAmplitude;
+    var amp = CONFIG.pixelShift.amplitude;
     this._shiftDx = (Math.random() * 2 - 1) * amp;
     this._shiftDy = (Math.random() * 2 - 1) * amp;
   },
@@ -1803,12 +1856,54 @@ const VersionOverlay = {
     this._pollId = setInterval(() => this._checkForUpdate(), 60 * 60 * 1000);
     this._registerSW();
 
-    // Use touchend on touch devices, click on mouse -- avoids double-fire on iPad Safari
-    const evType = ('ontouchstart' in window) ? 'touchend' : 'click';
-    moon.addEventListener(evType, (e) => {
+    // Phase 16: long-press 600ms opens the clockface picker; short tap shows
+    // the version overlay. Using press-start + press-end timestamps avoids
+    // conflicting with the existing single-tap behaviour. Single tap is
+    // reserved for VersionOverlay; long press is the picker gesture.
+    // Touch and mouse paths are mutually exclusive on iPad Safari (touchend
+    // fires; the synthesized click is suppressed by the preventDefault below).
+    const LONG_PRESS_MS = 600;
+    let pressStart = 0;
+    let pressTimer = null;
+    let longPressFired = false;
+
+    const onPressStart = () => {
+      pressStart = Date.now();
+      longPressFired = false;
+      if (pressTimer) clearTimeout(pressTimer);
+      pressTimer = setTimeout(() => {
+        longPressFired = true;
+        // Navigate to picker. The display will reload (or be reloaded by
+        // the storage event) when Apply is clicked there.
+        try { window.location.href = 'clockface.html'; } catch (err) {}
+      }, LONG_PRESS_MS);
+    };
+
+    const onPressEnd = (e) => {
       e.preventDefault();
-      this._onTap();
-    });
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      // If the long-press already fired, navigation is in flight; skip the tap.
+      if (longPressFired) return;
+      const duration = Date.now() - pressStart;
+      if (duration < LONG_PRESS_MS) {
+        this._onTap();
+      }
+    };
+
+    const onPressCancel = () => {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      longPressFired = false;
+    };
+
+    if ('ontouchstart' in window) {
+      moon.addEventListener('touchstart', onPressStart, { passive: true });
+      moon.addEventListener('touchend', onPressEnd);
+      moon.addEventListener('touchcancel', onPressCancel);
+    } else {
+      moon.addEventListener('mousedown', onPressStart);
+      moon.addEventListener('mouseup', onPressEnd);
+      moon.addEventListener('mouseleave', onPressCancel);
+    }
   },
 
   _registerSW() {
@@ -1923,14 +2018,160 @@ const DisplayModule = {
       MoonModule.renderDisc(this._els.moonDisc);
       MoonModule._lastRenderedPhase = AppState.moon.phase;
     }
+
+    // Phase 16: hand off to the active face. Faces are pure renderers; they
+    // read AppState/TWEAKS and write DOM. CalmFace.render() is a no-op
+    // (DisplayModule above drives all its DOM writes). Future faces paint
+    // their own subtree here.
+    ACTIVE_FACE.render(AppState, TWEAKS);
   }
 };
 
+// Phase 16: Stage helper. Owns the #stage element, manages the CSS scale token,
+// and attaches the resize listener. The stage is a fixed 1180x820 absolutely
+// positioned box; CSS transform: scale(...) fits it to the viewport.
+const Stage = {
+  _el: null,
+  _resizeBound: null,
+
+  init() {
+    this._el = document.getElementById('stage');
+    // index.html declares the #stage wrapper statically in Phase 16; if it is
+    // missing, fall back to creating it under #display for safety.
+    if (!this._el) {
+      const display = document.getElementById('display');
+      const s = document.createElement('div');
+      s.id = 'stage';
+      if (display) display.appendChild(s); else document.body.appendChild(s);
+      this._el = s;
+    }
+    this._recompute();
+    // Single resize listener for the lifetime of the page; the iPad target
+    // is locked to landscape, so this fires essentially never in production.
+    this._resizeBound = () => this._recompute();
+    window.addEventListener('resize', this._resizeBound);
+    return this._el;
+  },
+
+  _recompute() {
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const s = Math.min(W / CONFIG.stage.width, H / CONFIG.stage.height);
+    document.documentElement.style.setProperty('--stage-scale', s.toFixed(4));
+  }
+};
+
+// Phase 16: Calm face. The shipped V0 visual baseline preserved verbatim;
+// migration is layout-engine swap (vw/vh -> fixed-stage), no visual redesign.
+// init() adopts the existing time/date/slot/moon DOM nodes (declared in
+// index.html and now wrapped in #stage). render() is a thin pass-through to
+// DisplayModule's existing render path; faces are pure renderers (no AppState
+// mutation, no timers). teardown() is reserved for Phases 17-20 hot-swap.
+const CalmFace = {
+  init(stage) {
+    // The stage already contains #time, #date, #slot, #moon-disc (declared
+    // statically in index.html). DisplayModule init queries these IDs and
+    // caches handles; CalmFace simply confirms presence. If a future face
+    // needs to rebuild the subtree, teardown() will be its hook.
+    if (!stage) return;
+    // No-op: shipped element IDs are already present.
+  },
+
+  render() {
+    // Phase 16: DisplayModule.render() drives all DOM writes for Calm.
+    // Tweaks are applied at boot via ClockfaceRegistry.applyAccent /
+    // applyDriftIntensity, so this method has nothing else to do.
+    // Future faces (17-20) will paint their own subtree here using
+    // the (state, tweaks) arguments passed by DisplayModule.render().
+  },
+
+  teardown() {
+    // Reserved for Phase 17-20 hot-swap. Phase 16 face changes go through
+    // full reload via the storage event; teardown is never called.
+  }
+};
+
+// Phase 16: face registry. Phase 16 ships only `calm`; future faces register
+// themselves here and use the same init/render/teardown contract.
+const ClockfaceRegistry = {
+  faces: {
+    calm: CalmFace
+    // mechanical: MechanicalFace,   // Phase 17
+    // departures: DeparturesFace,   // Phase 18
+    // editorial:  EditorialFace,    // Phase 19
+    // horizon:    HorizonFace       // Phase 20
+  },
+
+  resolve(faceId) {
+    if (faceId && this.faces[faceId]) return this.faces[faceId];
+    if (faceId) console.warn('ClockfaceRegistry: unknown faceId "' + faceId + '"; falling back to calm');
+    return this.faces[CONFIG.clockface.defaultFaceId];
+  },
+
+  // Returns a fully-populated Tweaks object. Never throws; malformed input
+  // is silently replaced with defaults.
+  normalizeTweaks(raw) {
+    const def = CONFIG.tweakDefaults;
+    let parsed = null;
+    if (typeof raw === 'string' && raw.length) {
+      try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
+    } else if (raw && typeof raw === 'object') {
+      parsed = raw;
+    }
+    if (!parsed || typeof parsed !== 'object') {
+      return { accent: def.accent, driftIntensity: def.driftIntensity, byFace: {} };
+    }
+    const accent = ACCENT_PALETTE[parsed.accent] ? parsed.accent : def.accent;
+    const driftIntensity = (DRIFT_INTENSITY_MULT[parsed.driftIntensity] !== undefined)
+      ? parsed.driftIntensity
+      : def.driftIntensity;
+    const byFace = (parsed.byFace && typeof parsed.byFace === 'object') ? parsed.byFace : {};
+    return { accent: accent, driftIntensity: driftIntensity, byFace: byFace };
+  },
+
+  applyAccent(accentId) {
+    const entry = ACCENT_PALETTE[accentId] || ACCENT_PALETTE.gold;
+    const root = document.documentElement.style;
+    root.setProperty('--type-accent', entry.hex);
+    root.setProperty('--type-secondary', entry.secondary);
+    // SkyColorModule will continue to mutate --type-secondary on a 60s schedule;
+    // this only sets the initial floor.
+  },
+
+  applyDriftIntensity(level) {
+    const mult = DRIFT_INTENSITY_MULT[level];
+    DriftEngine.setIntensity(mult !== undefined ? mult : 1.0);
+  }
+};
+
+// Phase 16: face dispatch state. Set in boot(); read by DisplayModule.render().
+let ACTIVE_FACE = CalmFace;
+let TWEAKS = { accent: 'gold', driftIntensity: 'normal', byFace: {} };
+
 (function boot() {
+  // Phase 16: read storage and resolve face + tweaks
+  const FACE_ID = localStorage.getItem('solari.clockface') || CONFIG.clockface.defaultFaceId;
+  TWEAKS = ClockfaceRegistry.normalizeTweaks(
+    localStorage.getItem('solari.clockface.tweaks')
+  );
+  ACTIVE_FACE = ClockfaceRegistry.resolve(FACE_ID);
+
+  // Apply accent and drift intensity tweaks before module starts so the first
+  // paint already reflects them. SkyColorModule.update() and DriftEngine.start()
+  // will continue from these floor values.
+  ClockfaceRegistry.applyAccent(TWEAKS.accent);
+  ClockfaceRegistry.applyDriftIntensity(TWEAKS.driftIntensity);
+
+  // Stage scaffolding (creates #stage if missing, attaches resize listener)
+  const stage = Stage.init();
+
+  // Initialise the active face (Phase 16: CalmFace adopts the static DOM)
+  ACTIVE_FACE.init(stage);
+
   DisplayModule.init();
   RefresherCycle.init();
   RotatorModule.init();            // wraps slots in char spans
-  VersionOverlay.init();           // version overlay on moon tap
+  VersionOverlay.init();           // version overlay on moon tap (long-press also opens picker)
   AppState.meta.bootedAt = Date.now();
   ClockModule.start();
   SunModule.start();
@@ -1947,4 +2188,16 @@ const DisplayModule = {
   LuminanceBreath.start();          // Phase 14: luminance breath
   ObservanceModule.start();        // Phase 15: observances (before RotatorModule.start so data is set for first rotation tick)
   RotatorModule.start();           // begins rotation timers (after data modules)
+
+  // Phase 16: cross-tab Apply. The picker writes the three keys; this listener
+  // reloads the display so the new face/tweaks take effect on a clean boot.
+  window.addEventListener('storage', (e) => {
+    if (
+      e.key === 'solari.clockface' ||
+      e.key === 'solari.clockface.tweaks' ||
+      e.key === 'solari.clockface.applied_at'
+    ) {
+      location.reload();
+    }
+  });
 })();

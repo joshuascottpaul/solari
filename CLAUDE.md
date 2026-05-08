@@ -15,7 +15,7 @@ The authoritative specification is `2026 04 27 10 15 PM - SDD - Ambient Display 
 - **No backend.** Static hosting on GitHub Pages. Client-only architecture.
 - **Total bundle target: 250 KB uncompressed.**
 - **Target: iPad Air M4 Safari, landscape, always-on.** Must run continuously for months.
-- One JS file: `app.js` (CONFIG, AppState, all modules, render loop). `data.js` exists as a placeholder but is not loaded.
+- Two runtime files: `app.js` (CONFIG, AppState, all modules, render loop) and `style.css`. A single-purpose picker page (`clockface.html`, `clockface.js`) is the justified third JS file; the always-on display never loads it. `data.js` exists as a placeholder but is not loaded.
 - Two vendored libs in `lib/`: `suncalc.js` (MIT, ~3 KB) and `perlin.js` (MIT, ~2 KB).
 - `sw.js`: network-first service worker, registered at boot, enables cache busting for Safari Add-to-Home-Screen installs.
 
@@ -35,12 +35,17 @@ The authoritative specification is `2026 04 27 10 15 PM - SDD - Ambient Display 
 - `RefresherCycle` -- 03:00 daily LCD burn-in mitigation (fade to #404040 for 30s)
 - `LuminanceBreath` -- CSS `--lum-mod` oscillates +/-15% on 30-min sine wave
 - `ResilienceManager` -- fetch wrapper with retry/backoff + localStorage caching
-- `DisplayModule` -- reads AppState, writes DOM; called every tick
+- `DisplayModule` -- reads AppState, writes DOM; called every tick; ends each tick with `ACTIVE_FACE.render(AppState, TWEAKS)`
 - `VersionOverlay` -- tap moon disc to see build hash and deploy date; polls GitHub API hourly; shows "UPDATE AVAILABLE · TAP TO RELOAD" when a new commit is detected on master
+- `Stage` -- creates the 1180x820 fixed canvas, computes `--stage-scale` via CSS transform on boot and resize
+- `ClockfaceRegistry` -- face lookup, normalizes localStorage values, falls back to `calm` on invalid input; applies accent and driftIntensity tweaks on boot
+- `CalmFace` -- Phase 16 face object; `init/render/teardown` contract; `render()` is a no-op in Phase 16 (shipped DisplayModule handles Calm DOM writes); placeholder for Phases 17-20 faces in the same shape
+- Storage listener (boot) -- any write to `solari.clockface`, `solari.clockface.tweaks`, or `solari.clockface.applied_at` triggers `location.reload()`; face changes are configuration events, not live state
+- Picker (`clockface.html` + `clockface.js`) -- face selection, accent and driftIntensity tweaks, live-drift card preview; long-press 600 ms on moon disc opens it; single tap remains VersionOverlay
 
 ## Phase Status
 
-All 15 phases complete. V0 is feature-complete.
+V0 complete (Phases 1-15). V1 in progress.
 
 - [x] Phase 1: Static layout
 - [x] Phase 2: Live clock and date
@@ -57,6 +62,11 @@ All 15 phases complete. V0 is feature-complete.
 - [x] Phase 13: Daily refresher cycle + 24h soft reload
 - [x] Phase 14: Luminance breath
 - [x] Phase 15: Holiday/observance system
+- [x] Phase 16: Clockface foundation -- Stage primitive, face registry, CalmFace, picker page, storage contract, accent and driftIntensity tweaks (V1 opening phase)
+- [ ] Phase 17: Mechanical face (tabular Manrope/JetBrains Mono, minute-arc replaces second rail)
+- [ ] Phase 18: Departures face (split-flap row layout, gold border bezels)
+- [ ] Phase 19: Editorial face (Cormorant Garamond italic time, almanac voice paragraph)
+- [ ] Phase 20: Horizon face (sun and moon arc diagram with hour ticks)
 
 ## Key Design Rules
 
@@ -104,6 +114,8 @@ Test on iPad Safari for final verification. Layout uses vw/vh units for 1180x820
 index.html
 style.css
 app.js          # CONFIG + AppState + all modules + render loop
+clockface.html  # picker page (single-purpose configuration; never loaded by the display)
+clockface.js    # picker logic: face registry rendering, tweaks, apply, live preview drift
 sw.js           # network-first service worker for Safari Add-to-Home-Screen
 data.js         # placeholder (not loaded)
 lib/
@@ -116,6 +128,7 @@ data/
 manifest.json
 icons/          # empty (falls back to screenshot icon)
 docs/           # phase implementation specs and design notes
+  phase-16-clockface-foundation.md
 .github/
   workflows/
     refresh-tides.yml   # weekly cron: fetches and commits DFO tide predictions

@@ -26,7 +26,7 @@ Live: [joshuascottpaul.github.io/solari](https://joshuascottpaul.github.io/solar
 
 ## Technology
 
-Vanilla HTML, CSS, and JavaScript. No framework, no build step, no API keys. Total size: approximately 70 KB. Deployed as static files via GitHub Pages.
+Vanilla HTML, CSS, and JavaScript. No framework, no build step, no API keys. Total size: approximately 111 KB. Deployed as static files via GitHub Pages.
 
 Vendored libraries in `lib/` (both MIT-licensed): SunCalc for astronomical calculations, Perlin for noise generation.
 

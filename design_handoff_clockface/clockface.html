@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1180, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0a0a0a">
+  <title>Solari · Clockface</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400&family=JetBrains+Mono:wght@200;300;400&family=Instrument+Serif:ital@0;1&display=swap">
+  <link rel="icon" href="data:,">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      background: #0a0a0a;
+      color: #F0EBDC;
+      font-family: 'Manrope', system-ui, sans-serif;
+      font-weight: 200;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+    body { height: 100vh; width: 100vw; }
+    #root { width: 100vw; height: 100vh; }
+
+    :root {
+      --bg: #0a0a0a;
+      --type-primary: #F0EBDC;
+      --type-secondary: rgba(240, 235, 220, 0.62);
+      --type-tertiary: rgba(240, 235, 220, 0.32);
+      --type-accent: #F4C56C;
+      --rule: rgba(240, 235, 220, 0.10);
+    }
+
+    .pageScroll {
+      width: 100vw; height: 100vh;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+      scrollbar-width: none;
+    }
+    .pageScroll::-webkit-scrollbar { display: none; }
+
+    .faceSection {
+      width: 100vw; height: 100vh;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      display: grid; place-items: center;
+      position: relative;
+    }
+
+    .stage {
+      width: 1180px; height: 820px;
+      transform-origin: center center;
+      position: relative;
+      background: var(--bg);
+      overflow: hidden;
+    }
+
+    .drift { will-change: transform; }
+
+    .topbar {
+      position: fixed; top: 18px; left: 24px; right: 24px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; letter-spacing: 0.22em;
+      color: var(--type-tertiary);
+      text-transform: uppercase;
+      pointer-events: none; z-index: 30;
+    }
+    .topbar .right { display: flex; gap: 18px; pointer-events: auto; }
+    .topbar a { color: var(--type-secondary); text-decoration: none; }
+    .topbar a:hover { color: var(--type-primary); }
+
+    .dots {
+      position: fixed; right: 26px; top: 50%; transform: translateY(-50%);
+      display: flex; flex-direction: column; gap: 14px; z-index: 30;
+    }
+    .dots button {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: rgba(240, 235, 220, 0.20);
+      border: none; padding: 0; cursor: pointer;
+      transition: background .3s ease, transform .3s ease;
+    }
+    .dots button.is-active {
+      background: var(--type-primary); transform: scale(1.4);
+    }
+
+    .toolbar {
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 18px;
+      padding: 12px 14px 12px 22px;
+      background: rgba(20, 20, 20, 0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(240, 235, 220, 0.08);
+      border-radius: 999px; z-index: 40;
+      font-family: 'Manrope', sans-serif;
+    }
+    .toolbar .name {
+      font-size: 12px; letter-spacing: 0.24em;
+      color: var(--type-secondary);
+      text-transform: uppercase; min-width: 140px;
+    }
+    .toolbar .index {
+      color: var(--type-tertiary);
+      font-variant-numeric: tabular-nums;
+      font-size: 11px; letter-spacing: 0.18em;
+    }
+    .toolbar .sep { width: 1px; height: 18px; background: var(--rule); }
+    .toolbar button {
+      font-family: inherit; font-weight: 300;
+      letter-spacing: 0.18em; font-size: 11px;
+      text-transform: uppercase;
+      background: transparent;
+      border: 1px solid rgba(240, 235, 220, 0.18);
+      color: var(--type-secondary);
+      padding: 9px 16px; border-radius: 999px; cursor: pointer;
+      transition: color .2s, background .2s, border-color .2s;
+    }
+    .toolbar button:hover { color: var(--type-primary); border-color: rgba(240, 235, 220, 0.4); }
+    .toolbar .applyBtn {
+      background: var(--type-accent);
+      color: #1a1408;
+      border-color: var(--type-accent);
+    }
+    .toolbar .applyBtn:hover { background: #ffd684; border-color: #ffd684; color: #1a1408; }
+
+    .toast {
+      position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%);
+      background: rgba(244, 197, 108, 0.95); color: #1a1408;
+      padding: 10px 18px; border-radius: 999px;
+      font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+      z-index: 50; animation: toastIn .4s ease-out;
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translate(-50%, 8px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
+
+    .tweaks {
+      position: fixed; right: 22px; bottom: 84px;
+      width: 280px;
+      background: rgba(18, 18, 18, 0.96);
+      border: 1px solid rgba(240, 235, 220, 0.10);
+      border-radius: 14px;
+      padding: 18px 18px 16px; z-index: 45;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+      font-family: 'Manrope', sans-serif;
+    }
+    .tweaks h4 {
+      font-size: 10px; letter-spacing: 0.28em;
+      color: var(--type-tertiary); text-transform: uppercase;
+      font-weight: 300; margin-bottom: 14px;
+    }
+    .tweakRow { margin-bottom: 16px; }
+    .tweakRow:last-child { margin-bottom: 0; }
+    .tweakLabel {
+      font-size: 10px; letter-spacing: 0.22em;
+      color: var(--type-tertiary); text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .tweakSegment {
+      display: flex; gap: 0;
+      border: 1px solid rgba(240, 235, 220, 0.12);
+      border-radius: 8px; overflow: hidden;
+    }
+    .tweakSegment button {
+      flex: 1; background: transparent; border: none; padding: 8px 0;
+      color: var(--type-secondary);
+      font-size: 11px; letter-spacing: 0.16em;
+      text-transform: uppercase; font-family: inherit; cursor: pointer;
+      transition: background .2s, color .2s;
+    }
+    .tweakSegment button.is-active {
+      background: rgba(240, 235, 220, 0.10); color: var(--type-primary);
+    }
+    .swatchRow { display: flex; gap: 10px; }
+    .swatch {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 1px solid rgba(240, 235, 220, 0.15); cursor: pointer; padding: 0;
+      transition: transform .2s, border-color .2s;
+    }
+    .swatch.is-active { border-color: var(--type-primary); transform: scale(1.12); }
+
+    .flap { display: inline-block; position: relative; overflow: hidden; vertical-align: baseline; }
+    .flap .glyph { display: inline-block; }
+    .flap .glyph.fading-out { animation: flapOut .22s ease-in forwards; }
+    .flap .glyph.fading-in { animation: flapIn .26s ease-out; }
+    @keyframes flapOut {
+      0% { transform: translateY(0); opacity: 1; filter: brightness(1); }
+      100% { transform: translateY(40%); opacity: 0; filter: brightness(0.6); }
+    }
+    @keyframes flapIn {
+      0% { transform: translateY(-40%); opacity: 0; filter: brightness(0.6); }
+      100% { transform: translateY(0); opacity: 1; filter: brightness(1); }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useRef, useMemo } = React;
+
+    // ----- live clock --------------------------------------------------
+    function useNow(tickMs = 1000) {
+      const [now, setNow] = useState(() => new Date());
+      useEffect(() => {
+        let raf, cancelled = false;
+        function tick() {
+          if (cancelled) return;
+          setNow(new Date());
+          const ms = tickMs - (Date.now() % tickMs);
+          raf = setTimeout(tick, Math.max(50, ms));
+        }
+        tick();
+        return () => { cancelled = true; clearTimeout(raf); };
+      }, [tickMs]);
+      return now;
+    }
+
+    function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+
+    function formatTime(date, fmt) {
+      if (fmt === '24h') {
+        return { hh: pad2(date.getHours()), mm: pad2(date.getMinutes()), ss: pad2(date.getSeconds()), ampm: '' };
+      }
+      let h = date.getHours();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12; if (h === 0) h = 12;
+      return { hh: '' + h, mm: pad2(date.getMinutes()), ss: pad2(date.getSeconds()), ampm };
+    }
+
+    // ----- mock AppState ----------------------------------------------
+    const AppData = {
+      weather: { tempC: 12, condition: 'PARTLY CLOUDY', glyph: '◐' },
+      aqi:     { value: 24, label: 'GOOD' },
+      tide:    { type: 'high', heightM: 4.3, timeStr: '4:22 AM', station: 'Point Atkinson' },
+      moon:    { phase: 'WAXING CRESCENT', illumPct: 18, glyph: '🌒', moonrise: '9:14 AM', moonset: '11:52 PM', waxing: true },
+      sun:     { sunrise: '5:12 AM', sunset: '8:47 PM', goldenHour: '7:58 PM', civilDawn: '4:38 AM' },
+      almanac: { name: 'ETA AQUARIIDS', kind: 'METEOR SHOWER', peak: 'MAY 6', distance: 'PEAKED YESTERDAY' },
+      station: 'YVR · POINT ATKINSON',
+      city:    'VANCOUVER, BC'
+    };
+
+    // ----- per-element drift ------------------------------------------
+    function useDrift(seed, intensity = 1, ampPx = [3, 2]) {
+      const [t, setT] = useState(0);
+      useEffect(() => {
+        if (intensity <= 0) return;
+        let raf, start = performance.now();
+        function loop(now) {
+          setT((now - start) / 1000);
+          raf = requestAnimationFrame(loop);
+        }
+        raf = requestAnimationFrame(loop);
+        return () => cancelAnimationFrame(raf);
+      }, [intensity]);
+      const px = [117, 89, 143, 101, 73, 61];
+      const i = (seed * 7) % px.length;
+      const j = (seed * 11 + 3) % px.length;
+      const dx = Math.sin((t + seed * 17) * (2 * Math.PI / px[i])) * ampPx[0] * intensity;
+      const dy = Math.cos((t + seed * 23) * (2 * Math.PI / px[j])) * ampPx[1] * intensity;
+      return { transform: `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)` };
+    }
+
+    // ----- the fixed-size stage ---------------------------------------
+    function FaceStage({ children, label }) {
+      const [scale, setScale] = useState(1);
+      useEffect(() => {
+        function compute() {
+          const W = window.innerWidth;
+          const H = window.innerHeight;
+          const s = Math.min(W / 1180, (H - 100) / 820, 1.35);
+          setScale(s);
+        }
+        compute();
+        window.addEventListener('resize', compute);
+        return () => window.removeEventListener('resize', compute);
+      }, []);
+      return (
+        <div className="stage" data-screen-label={label} style={{ transform: `scale(${scale})` }}>
+          {children}
+        </div>
+      );
+    }
+
+    // ----- split-flap character ---------------------------------------
+    function FlapChar({ value, monoWidth = '0.62em' }) {
+      const [shown, setShown] = useState(value);
+      const [phase, setPhase] = useState('idle');
+      const pendingRef = useRef(value);
+      useEffect(() => {
+        if (value === shown) return;
+        pendingRef.current = value;
+        setPhase('out');
+        const t1 = setTimeout(() => {
+          setShown(pendingRef.current);
+          setPhase('in');
+          const t2 = setTimeout(() => setPhase('idle'), 260);
+          return () => clearTimeout(t2);
+        }, 220);
+        return () => clearTimeout(t1);
+      }, [value]);
+      return (
+        <span className="flap" style={{ minWidth: monoWidth }}>
+          <span className={'glyph' + (phase === 'out' ? ' fading-out' : phase === 'in' ? ' fading-in' : '')}>
+            {shown}
+          </span>
+        </span>
+      );
+    }
+
+    function FlapText({ text }) {
+      return (
+        <span style={{ display: 'inline-block' }}>
+          {text.split('').map((ch, i) => (
+            <FlapChar key={i} value={ch} monoWidth={ch === ' ' ? '0.34em' : '0.62em'} />
+          ))}
+        </span>
+      );
+    }
+
+    // =====================================================================
+    // FACE 1 — CALM (faithful Solari)
+    // =====================================================================
+    function CalmFace({ now, tweaks }) {
+      const t = formatTime(now, tweaks.timeFormat);
+      const dayName = now.toLocaleDateString('en-US', { weekday: 'long' });
+      const monthName = now.toLocaleDateString('en-US', { month: 'long' });
+      const driftA = useDrift(1, tweaks.drift, [3, 2]);
+      const driftB = useDrift(2, tweaks.drift, [2, 1.4]);
+      const driftC = useDrift(3, tweaks.drift, [2.4, 1.6]);
+      const driftD = useDrift(4, tweaks.drift, [1.6, 1.2]);
+      const slots = useMemo(() => [
+        `WEATHER ${AppData.weather.tempC}° ${AppData.weather.condition}`,
+        `AQI ${AppData.aqi.value} · ${AppData.aqi.label}`,
+        `HIGH TIDE ${AppData.tide.heightM}M ${AppData.tide.timeStr}`,
+        `SUNSET ${AppData.sun.sunset}`,
+        `MOON · ${AppData.moon.phase} ${AppData.moon.illumPct}%`
+      ], []);
+      const [slotIdx, setSlotIdx] = useState(0);
+      useEffect(() => {
+        const id = setInterval(() => setSlotIdx(i => (i + 1) % slots.length), 6000);
+        return () => clearInterval(id);
+      }, [slots.length]);
+      return (
+        <div style={{ position:'relative', width:'100%', height:'100%', fontFamily:"'Manrope', sans-serif", color:'var(--type-primary)' }}>
+          <svg viewBox="0 0 100 100" className="drift" style={{ position:'absolute', left:990, top:90, width:140, height:140, ...driftD }}>
+            <circle cx="50" cy="50" r="48" fill="var(--type-accent)" opacity="0.16" />
+            <circle cx="64" cy="50" r="36" fill="#0a0a0a" />
+          </svg>
+          <div className="drift" style={{
+            position:'absolute', left:'50%', top:360, transform:`translate(-50%, -50%) ${driftA.transform}`,
+            fontWeight:200, fontSize:280, lineHeight:1, letterSpacing:'-0.02em', textAlign:'center'
+          }}>
+            <span>{t.hh}</span>
+            <span style={{ fontSize:230, opacity:0.85, margin:'0 0.04em' }}>:</span>
+            <span>{t.mm}</span>
+            {t.ampm && <span style={{ fontSize:64, fontWeight:200, opacity:0.55, marginLeft:18, verticalAlign:'top' }}>{t.ampm}</span>}
+          </div>
+          <div className="drift" style={{
+            position:'absolute', left:'50%', top:560, transform:`translate(-50%, -50%) ${driftB.transform}`,
+            fontWeight:300, fontSize:38, letterSpacing:'0.04em', color:'var(--type-secondary)', textAlign:'center', whiteSpace:'nowrap'
+          }}>
+            {dayName} · {monthName} {now.getDate()} · {now.getFullYear()}
+          </div>
+          <div className="drift" style={{
+            position:'absolute', left:'50%', top:700, transform:`translate(-50%, -50%) ${driftC.transform}`,
+            fontWeight:300, fontSize:32, letterSpacing:'0.18em', color:'var(--type-secondary)', textTransform:'uppercase', whiteSpace:'nowrap'
+          }}>
+            <FlapText text={slots[slotIdx]} />
+          </div>
+        </div>
+      );
+    }
+
+    // =====================================================================
+    // FACE 2 — MECHANICAL
+    // =====================================================================
+    function MechanicalFace({ now, tweaks }) {
+      const t = formatTime(now, '24h');
+      const seconds = now.getSeconds();
+      const driftA = useDrift(11, tweaks.drift, [2.4, 1.6]);
+      const driftB = useDrift(12, tweaks.drift, [1.8, 1.2]);
+      const driftC = useDrift(13, tweaks.drift, [1.6, 1.0]);
+      const ticks = [];
+      for (let i = 0; i < 60; i++) {
+        const isMaj = i % 5 === 0;
+        const isLit = i === seconds;
+        const isPast = i < seconds;
+        ticks.push(
+          <div key={i} style={{
+            width: 1,
+            height: isMaj ? 14 : isLit ? 14 : 6,
+            background: isLit ? 'var(--type-accent)' : isPast ? 'rgba(240, 235, 220, 0.40)' : 'rgba(240, 235, 220, 0.16)',
+            transition: 'background 0.4s, height 0.2s'
+          }} />
+        );
+      }
+      const styleMono = { fontFamily: "'JetBrains Mono', ui-monospace, monospace" };
+      const dateIso = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+      const day3 = now.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+      return (
+        <div style={{ position:'relative', width:'100%', height:'100%', ...styleMono, color:'var(--type-primary)', fontWeight:200 }}>
+          <div style={{ position:'absolute', top:60, left:80, fontSize:11, letterSpacing:'0.32em', color:'var(--type-tertiary)' }}>
+            SOLARI · MECHANICAL · {AppData.city}
+          </div>
+          <div style={{ position:'absolute', top:60, right:80, fontSize:11, letterSpacing:'0.32em', color:'var(--type-tertiary)' }}>
+            49.28°N · 123.12°W
+          </div>
+          <div className="drift" style={{
+            position:'absolute', left:80, right:80, top:130,
+            display:'flex', justifyContent:'space-between', alignItems:'flex-end', height:16,
+            ...driftC
+          }}>
+            {ticks}
+          </div>
+          <div className="drift" style={{
+            position:'absolute', left:'50%', top:360, transform:`translate(-50%, -50%) ${driftA.transform}`,
+            fontSize:300, fontWeight:200, letterSpacing:'-0.02em', lineHeight:1,
+            fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap'
+          }}>
+            <span>{t.hh}</span>
+            <span style={{ opacity:0.40, margin:'0 0.05em' }}>:</span>
+            <span>{t.mm}</span>
+            <span style={{ fontSize:120, opacity:0.55, marginLeft:18, verticalAlign:'top' }}>
+              <span style={{ opacity:0.40 }}>:</span>{t.ss}
+            </span>
+          </div>
+          <div style={{ position:'absolute', left:80, right:80, top:540, height:1, background:'var(--rule)' }} />
+          <div className="drift" style={{
+            position:'absolute', left:80, right:80, top:580,
+            display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:0,
+            fontSize:16, letterSpacing:'0.14em', textTransform:'uppercase',
+            ...driftB
+          }}>
+            {[
+              ['DATE', `${day3} ${dateIso}`],
+              ['TEMP', `${AppData.weather.tempC > 0 ? '+' : ''}${AppData.weather.tempC}° · ${AppData.weather.condition}`],
+              ['AQI', `${String(AppData.aqi.value).padStart(3,'0')} · ${AppData.aqi.label}`],
+              ['SUN', `↑ ${AppData.sun.sunrise}  ↓ ${AppData.sun.sunset}`],
+              ['MOON', `${AppData.moon.phase} · ${AppData.moon.illumPct}%`]
+            ].map(([label, val], i) => (
+              <div key={label} style={{ borderRight: i < 4 ? '1px solid var(--rule)' : 'none', padding:'0 18px' }}>
+                <div style={{ fontSize:10, color:'var(--type-tertiary)', letterSpacing:'0.28em', marginBottom:8 }}>{label}</div>
+                <div style={{ color:'var(--type-primary)', fontWeight:300 }}>{val}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ position:'absolute', left:80, right:80, bottom:80, display:'flex', justifyContent:'space-between', fontSize:10, letterSpacing:'0.32em', color:'var(--type-tertiary)' }}>
+            <span>SEC ░ {String(seconds).padStart(2, '0')} / 60</span>
+            <span>TIDE · HIGH {AppData.tide.heightM}M @ {AppData.tide.timeStr}</span>
+            <span>ALMANAC · {AppData.almanac.name}</span>
+          </div>
+        </div>
+      );
+    }
+
+    // =====================================================================
+    // FACE 3 — DEPARTURES (split-flap board)
+    // =====================================================================
+    function DeparturesFace({ now, tweaks }) {
+      const t = formatTime(now, '24h');
+      const driftA = useDrift(21, tweaks.drift, [2, 1.4]);
+      const driftB = useDrift(22, tweaks.drift, [1.6, 1.0]);
+      const day3 = now.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+      const dateStr = `${day3} ${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+      const rows = [
+        { time: '20:47', tag: 'SUN',    detail: 'GOLDEN HOUR · SUNSET',                               status: 'IN 5H 15M', accent: true },
+        { time: '04:22', tag: 'TIDE',   detail: 'HIGH 4.3M · ' + AppData.tide.station.toUpperCase(),  status: 'ARRIVING' },
+        { time: '22:14', tag: 'MOON',   detail: AppData.moon.phase + ' · ' + AppData.moon.illumPct + '%', status: 'RISING' },
+        { time: '21:00', tag: 'METEOR', detail: AppData.almanac.name + ' · PEAK MAY 6',               status: 'PEAKED' },
+        { time: '05:12', tag: 'SUN',    detail: 'SUNRISE · CIVIL DAWN 04:38',                         status: 'TOMORROW' }
+      ];
+      const flapBox = {
+        display:'inline-block', background:'#16140f',
+        padding:'4px 14px 2px', borderRadius:5,
+        border:'1px solid rgba(244, 197, 108, 0.22)',
+        boxShadow:'inset 0 -1px 0 rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
+        color:'var(--type-accent)', fontVariantNumeric:'tabular-nums',
+        fontSize:96, lineHeight:1
+      };
+      return (
+        <div style={{ position:'relative', width:'100%', height:'100%', fontFamily:"'JetBrains Mono', ui-monospace, monospace", color:'var(--type-primary)', fontWeight:300 }}>
+          <div style={{
+            position:'absolute', top:60, left:80, right:80,
+            display:'flex', justifyContent:'space-between',
+            fontSize:12, letterSpacing:'0.34em', color:'var(--type-tertiary)',
+            textTransform:'uppercase', borderBottom:'1px solid var(--rule)', paddingBottom:14
+          }}>
+            <span>SOLARI · DEPARTURE BOARD</span>
+            <span>{AppData.station}</span>
+            <span>{dateStr} · LOCAL</span>
+          </div>
+          <div className="drift" style={{
+            position:'absolute', left:80, right:80, top:140,
+            display:'flex', alignItems:'center', justifyContent:'space-between', gap:24,
+            ...driftA
+          }}>
+            <div style={{ display:'flex', alignItems:'baseline', gap:10 }}>
+              <span style={flapBox}>
+                <FlapChar value={t.hh[0]} monoWidth="0.62em" />
+                <FlapChar value={t.hh[1]} monoWidth="0.62em" />
+              </span>
+              <span style={{ fontSize:80, color:'var(--type-accent)', opacity:0.85, margin:'0 2px' }}>:</span>
+              <span style={flapBox}>
+                <FlapChar value={t.mm[0]} monoWidth="0.62em" />
+                <FlapChar value={t.mm[1]} monoWidth="0.62em" />
+              </span>
+            </div>
+            <div style={{ textAlign:'right', fontSize:13, letterSpacing:'0.30em', color:'var(--type-tertiary)', textTransform:'uppercase', lineHeight:1.7 }}>
+              <div>NOW · {day3}</div>
+              <div style={{ color:'var(--type-secondary)' }}>{AppData.weather.condition} {AppData.weather.tempC}°</div>
+              <div>SUNSET IN 5H 15M</div>
+            </div>
+          </div>
+          <div className="drift" style={{
+            position:'absolute', top:300, left:80, right:80,
+            display:'grid', gridTemplateColumns:'110px 110px 1fr 200px',
+            gap:24, fontSize:11, letterSpacing:'0.30em', color:'var(--type-tertiary)',
+            textTransform:'uppercase', borderBottom:'1px solid var(--rule)', paddingBottom:10,
+            ...driftB
+          }}>
+            <span>TIME</span>
+            <span>EVENT</span>
+            <span>DETAIL</span>
+            <span style={{ textAlign:'right' }}>STATUS</span>
+          </div>
+          <div className="drift" style={{
+            position:'absolute', top:340, left:80, right:80,
+            display:'flex', flexDirection:'column', gap:18,
+            ...driftB
+          }}>
+            {rows.map((r, i) => (
+              <div key={i} style={{
+                display:'grid', gridTemplateColumns:'110px 110px 1fr 200px',
+                gap:24, alignItems:'center',
+                fontSize:22, letterSpacing:'0.10em', textTransform:'uppercase',
+                color: r.accent ? 'var(--type-primary)' : 'var(--type-secondary)',
+                opacity: i === 4 ? 0.55 : 1
+              }}>
+                <span style={{ color: r.accent ? 'var(--type-accent)' : 'var(--type-primary)', fontVariantNumeric:'tabular-nums' }}>
+                  <FlapText text={r.time} />
+                </span>
+                <span style={{ fontSize:12, letterSpacing:'0.28em', color:'var(--type-tertiary)' }}>{r.tag}</span>
+                <span style={{ fontSize:18 }}>{r.detail}</span>
+                <span style={{ textAlign:'right', fontSize:14, letterSpacing:'0.22em', color: r.accent ? 'var(--type-accent)' : 'var(--type-secondary)' }}>
+                  <FlapText text={r.status} />
+                </span>
+              </div>
+            ))}
+          </div>
+          <div style={{
+            position:'absolute', bottom:60, left:80, right:80,
+            display:'flex', justifyContent:'space-between',
+            fontSize:11, letterSpacing:'0.30em', color:'var(--type-tertiary)', textTransform:'uppercase'
+          }}>
+            <span>WEATHER · {AppData.weather.condition} {AppData.weather.tempC}°</span>
+            <span>AIR · {AppData.aqi.label} ({AppData.aqi.value})</span>
+            <span>NO ALERTS</span>
+          </div>
+        </div>
+      );
+    }
+
+    // =====================================================================
+    // FACE 4 — EDITORIAL
+    // =====================================================================
+    function EditorialFace({ now, tweaks }) {
+      const t = formatTime(now, tweaks.timeFormat);
+      const monthName = now.toLocaleDateString('en-US', { month: 'long' });
+      const dayName = now.toLocaleDateString('en-US', { weekday: 'long' });
+      const driftA = useDrift(31, tweaks.drift, [2.6, 1.6]);
+      const driftB = useDrift(32, tweaks.drift, [1.6, 1.0]);
+      const driftC = useDrift(33, tweaks.drift, [2.0, 1.2]);
+      return (
+        <div style={{ position:'relative', width:'100%', height:'100%', color:'var(--type-primary)' }}>
+          <div style={{
+            position:'absolute', top:70, left:100, right:100,
+            display:'flex', justifyContent:'space-between', alignItems:'baseline',
+            borderTop:'1px solid var(--rule)', paddingTop:18,
+            fontFamily:"'Manrope', sans-serif", fontSize:11, letterSpacing:'0.34em',
+            color:'var(--type-tertiary)', textTransform:'uppercase'
+          }}>
+            <span>The Solari Almanac</span>
+            <span>Vol. I · No. {now.getDate()}</span>
+            <span>{monthName} {now.getDate()}, {now.getFullYear()}</span>
+          </div>
+          <div className="drift" style={{
+            position:'absolute', left:100, top:200,
+            fontFamily:"'Instrument Serif', 'Times New Roman', serif",
+            fontStyle:'italic', fontWeight:400,
+            fontSize:360, lineHeight:0.9, letterSpacing:'-0.04em',
+            ...driftA
+          }}>
+            {t.hh}<span style={{ color:'var(--type-accent)' }}>:</span>{t.mm}
+            {t.ampm && (
+              <span style={{
+                fontFamily:"'Manrope', sans-serif", fontStyle:'normal',
+                fontSize:56, fontWeight:200, letterSpacing:'0.18em',
+                verticalAlign:'top', marginLeft:24, color:'var(--type-secondary)'
+              }}>{t.ampm}</span>
+            )}
+          </div>
+          <div className="drift" style={{
+            position:'absolute', right:110, top:220, width:320,
+            fontFamily:"'Manrope', sans-serif",
+            ...driftB
+          }}>
+            <div style={{
+              fontSize:14, letterSpacing:'0.32em', color:'var(--type-tertiary)',
+              textTransform:'uppercase', marginBottom:14
+            }}>This evening</div>
+            <div style={{
+              fontFamily:"'Instrument Serif', serif", fontStyle:'italic',
+              fontSize:64, lineHeight:1.0, fontWeight:400, marginBottom:14
+            }}>
+              {dayName},
+            </div>
+            <div style={{
+              fontFamily:"'Instrument Serif', serif",
+              fontSize:52, lineHeight:1.0, fontWeight:400, color:'var(--type-secondary)'
+            }}>
+              {monthName} {now.getDate()}.
+            </div>
+          </div>
+          <div className="drift" style={{
+            position:'absolute', right:110, top:470, width:360,
+            fontFamily:"'Instrument Serif', serif",
+            fontSize:26, lineHeight:1.35, color:'var(--type-secondary)',
+            ...driftC
+          }}>
+            <span style={{ color:'var(--type-primary)' }}>Twelve degrees</span>, partly cloudy. Golden hour
+            beginning at <span style={{ color:'var(--type-primary)' }}>{AppData.sun.goldenHour}</span>;
+            the moon, a {AppData.moon.phase.toLowerCase()} at {AppData.moon.illumPct}&thinsp;percent.
+          </div>
+          <div style={{
+            position:'absolute', left:100, right:100, bottom:90,
+            display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:0,
+            borderTop:'1px solid var(--rule)', paddingTop:22,
+            fontFamily:"'Manrope', sans-serif",
+            textTransform:'uppercase', letterSpacing:'0.22em',
+            fontSize:12, color:'var(--type-tertiary)'
+          }}>
+            {[
+              ['Tide', 'High ' + AppData.tide.heightM + 'm · ' + AppData.tide.timeStr],
+              ['Air',  'AQI ' + AppData.aqi.value + ' · ' + AppData.aqi.label],
+              ['Sun',  '↑ ' + AppData.sun.sunrise + '  ↓ ' + AppData.sun.sunset],
+              ['Almanac', AppData.almanac.name]
+            ].map(([k, v], i) => (
+              <div key={k} style={{ borderRight: i < 3 ? '1px solid var(--rule)' : 'none', padding:'0 18px' }}>
+                <div style={{ marginBottom:6 }}>{k}</div>
+                <div style={{
+                  fontFamily:"'Instrument Serif', serif", textTransform:'none',
+                  letterSpacing:'0', fontSize:22, color:'var(--type-primary)', fontWeight:400
+                }}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // =====================================================================
+    // FACE 5 — HORIZON (the day, drawn)
+    // =====================================================================
+    function HorizonFace({ now, tweaks }) {
+      const t = formatTime(now, tweaks.timeFormat);
+      const driftA = useDrift(41, tweaks.drift, [2.0, 1.2]);
+      const driftB = useDrift(42, tweaks.drift, [1.6, 1.0]);
+      const driftC = useDrift(43, tweaks.drift, [2.4, 1.4]);
+      const driftD = useDrift(44, tweaks.drift, [1.4, 0.9]);
+
+      const parseHM = (s) => {
+        const m = String(s).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+        if (!m) return 0;
+        let h = parseInt(m[1],10), mm = parseInt(m[2],10);
+        const ap = (m[3]||'').toUpperCase();
+        if (ap === 'PM' && h < 12) h += 12;
+        if (ap === 'AM' && h === 12) h = 0;
+        return (h + mm/60) / 24;
+      };
+      const sunriseF = parseHM(AppData.sun.sunrise);
+      const sunsetF  = parseHM(AppData.sun.sunset);
+      const moonriseF = parseHM(AppData.moon.moonrise);
+      const moonsetF  = parseHM(AppData.moon.moonset);
+      const nowF = (now.getHours()*3600 + now.getMinutes()*60 + now.getSeconds()) / 86400;
+      const isDay = nowF >= sunriseF && nowF <= sunsetF;
+      // moon up: handles wrap past midnight
+      const moonUp = moonsetF > moonriseF
+        ? (nowF >= moonriseF && nowF <= moonsetF)
+        : (nowF >= moonriseF || nowF <= moonsetF);
+      const dayMin = Math.round((sunsetF - sunriseF) * 24 * 60);
+      const dayHrs = Math.floor(dayMin/60), dayMm = dayMin%60;
+
+      // 24h horizontal axis
+      const dayLeft = 90, dayRight = 1090;
+      const dayW = dayRight - dayLeft;
+      const xAt = (frac) => dayLeft + frac * dayW;
+      const horizonY = 440;
+      const arcH = 240;
+
+      const srX = xAt(sunriseF), ssX = xAt(sunsetF);
+      const sun = isDay ? (() => {
+        const p = (nowF - sunriseF) / (sunsetF - sunriseF);
+        return { x: srX + p * (ssX - srX), y: horizonY - Math.sin(p * Math.PI) * arcH, p };
+      })() : null;
+
+      // sun arc path: from sunrise to sunset peaking at noon
+      const sunMidX = (srX + ssX) / 2;
+      const sunArc = `M ${srX} ${horizonY} Q ${sunMidX} ${horizonY - arcH*1.6} ${ssX} ${horizonY}`;
+
+      // moon arc — its OWN rise/set, lower amplitude, drawn alongside the sun
+      const moonArcH = arcH * 0.62;
+      const mrX = xAt(moonriseF);
+      const msX_clamped = moonsetF > moonriseF ? xAt(moonsetF) : xAt(1);
+      const moonMidX = (mrX + msX_clamped) / 2;
+      const moonArc = `M ${mrX} ${horizonY} Q ${moonMidX} ${horizonY - moonArcH*1.6} ${msX_clamped} ${horizonY}`;
+
+      const moon = moonUp ? (() => {
+        const lenF = moonsetF > moonriseF ? (moonsetF - moonriseF)
+          : ((1 - moonriseF) + moonsetF);
+        const elapsedF = nowF >= moonriseF ? (nowF - moonriseF)
+          : ((1 - moonriseF) + nowF);
+        const p = lenF > 0 ? elapsedF / lenF : 0;
+        return {
+          x: mrX + p * (msX_clamped - mrX),
+          y: horizonY - Math.sin(p * Math.PI) * moonArcH,
+          p
+        };
+      })() : null;
+
+      // phase-correct crescent path: two arcs sharing top/bottom points of the disk
+      const moonPhasePath = (cx, cy, r) => {
+        const illum = Math.max(0.02, Math.min(0.98, AppData.moon.illumPct / 100));
+        const w = Math.abs(1 - 2*illum); // terminator ellipse half-width
+        const lit = AppData.moon.waxing ? 1 : 0; // 1 = lit limb on right
+        // outer arc traces lit limb; terminator arc returns from bottom to top
+        if (illum <= 0.5) {
+          return `M ${cx} ${cy - r} A ${r} ${r} 0 0 ${lit} ${cx} ${cy + r} `
+               + `A ${r * w} ${r} 0 0 ${1 - lit} ${cx} ${cy - r} Z`;
+        }
+        // gibbous: outer full disk minus dark crescent
+        return `M ${cx} ${cy - r} A ${r} ${r} 0 1 ${lit} ${cx} ${cy + r} `
+             + `A ${r * w} ${r} 0 0 ${lit} ${cx} ${cy - r} Z`;
+      };
+
+      const day3 = now.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+      const dateStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+
+      return (
+        <div style={{ position:'relative', width:'100%', height:'100%', color:'var(--type-primary)', overflow:'hidden' }}>
+          {/* Header strip */}
+          <div className="drift" style={{
+            position:'absolute', top:50, left:80, right:80,
+            display:'flex', justifyContent:'space-between',
+            fontFamily:"'JetBrains Mono', monospace",
+            fontSize:12, letterSpacing:'0.32em', color:'var(--type-tertiary)',
+            textTransform:'uppercase', ...driftA
+          }}>
+            <span>HORIZON · 49.32°N 123.13°W</span>
+            <span>{day3} · {dateStr}</span>
+            <span>DAYLIGHT {dayHrs}H {String(dayMm).padStart(2,'0')}M</span>
+          </div>
+
+          {/* Sky diagram */}
+          <svg className="drift" style={{
+            position:'absolute', top:0, left:0, width:'100%', height:'100%',
+            pointerEvents:'none', ...driftB
+          }} viewBox="0 0 1180 820" preserveAspectRatio="none">
+            <defs>
+              <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%"  stopColor="#F4C56C" stopOpacity="0.28"/>
+                <stop offset="60%" stopColor="#F4C56C" stopOpacity="0.06"/>
+                <stop offset="100%" stopColor="#F4C56C" stopOpacity="0"/>
+              </radialGradient>
+              <radialGradient id="moonGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%"  stopColor="#A8C7FF" stopOpacity="0.18"/>
+                <stop offset="100%" stopColor="#A8C7FF" stopOpacity="0"/>
+              </radialGradient>
+            </defs>
+
+            {/* Sun arc */}
+            <path d={sunArc} stroke="rgba(244,197,108,0.22)" strokeWidth="1" strokeDasharray="2 7" fill="none" />
+            {/* Moon arc — alongside, cooler, lower amplitude */}
+            <path d={moonArc} stroke="rgba(168,199,255,0.18)" strokeWidth="1" strokeDasharray="1 6" fill="none" />
+
+            {/* Horizon line */}
+            <line x1={dayLeft - 10} y1={horizonY} x2={dayRight + 10} y2={horizonY}
+                  stroke="rgba(255,255,255,0.22)" strokeWidth="1"/>
+
+            {/* Hour ticks below horizon */}
+            {Array.from({length:25}, (_,h)=>h).map(h => {
+              const x = xAt(h/24);
+              const major = h % 6 === 0;
+              return <line key={h} x1={x} y1={horizonY} x2={x} y2={horizonY + (major?14:6)}
+                stroke="rgba(255,255,255,0.20)" strokeWidth={major ? 1.2 : 0.8}/>;
+            })}
+
+            {/* Sunrise / sunset notches */}
+            <g>
+              <line x1={srX} y1={horizonY-8} x2={srX} y2={horizonY+8} stroke="rgba(244,197,108,0.55)" strokeWidth="1"/>
+              <line x1={ssX} y1={horizonY-8} x2={ssX} y2={horizonY+8} stroke="rgba(244,197,108,0.55)" strokeWidth="1"/>
+            </g>
+            {/* Moonrise / moonset notches */}
+            <g>
+              <line x1={mrX} y1={horizonY-6} x2={mrX} y2={horizonY+6} stroke="rgba(168,199,255,0.45)" strokeWidth="1"/>
+              <line x1={msX_clamped} y1={horizonY-6} x2={msX_clamped} y2={horizonY+6} stroke="rgba(168,199,255,0.45)" strokeWidth="1"/>
+            </g>
+
+            {/* Sun glyph */}
+            {sun && (
+              <g>
+                <circle cx={sun.x} cy={sun.y} r="60" fill="url(#sunGlow)"/>
+                <circle cx={sun.x} cy={sun.y} r="18" fill="#F4C56C"/>
+                <line x1={sun.x} y1={sun.y + 18} x2={sun.x} y2={horizonY}
+                      stroke="rgba(244,197,108,0.35)" strokeWidth="1" strokeDasharray="2 4"/>
+              </g>
+            )}
+            {moon && (
+              <g>
+                <circle cx={moon.x} cy={moon.y} r="34" fill="url(#moonGlow)"/>
+                {/* unlit disk (very faint, suggests the full moon is there) */}
+                <circle cx={moon.x} cy={moon.y} r="13" fill="rgba(168,199,255,0.10)" stroke="rgba(168,199,255,0.28)" strokeWidth="0.6"/>
+                {/* lit crescent, phase-correct */}
+                <path d={moonPhasePath(moon.x, moon.y, 13)} fill="rgba(228,236,250,0.92)"/>
+              </g>
+            )}
+
+            {/* Now hairline through horizon */}
+            <line x1={xAt(nowF)} y1={120} x2={xAt(nowF)} y2={horizonY + 28}
+                  stroke="rgba(244,197,108,0.45)" strokeWidth="1"/>
+          </svg>
+
+          {/* Hour labels strip */}
+          <div className="drift" style={{
+            position:'absolute', top:472, left:0, right:0, height:18,
+            fontFamily:"'JetBrains Mono', monospace",
+            fontSize:11, letterSpacing:'0.24em', color:'var(--type-tertiary)',
+            ...driftB
+          }}>
+            {[0,6,12,18,24].map(h => (
+              <div key={h} style={{
+                position:'absolute', left: xAt(h/24), transform:'translateX(-50%)',
+                whiteSpace:'nowrap'
+              }}>{String(h%24).padStart(2,'0')}:00</div>
+            ))}
+          </div>
+
+          {/* Arc-terminal labels */}
+          <div className="drift" style={{
+            position:'absolute', top:498, left:0, right:0, height:14,
+            fontFamily:"'JetBrains Mono', monospace",
+            fontSize:10, letterSpacing:'0.28em',
+            ...driftB
+          }}>
+            <div style={{ position:'absolute', left: srX, transform:'translateX(-50%)', color:'rgba(244,197,108,0.6)' }}>☀ ↑ {AppData.sun.sunrise}</div>
+            <div style={{ position:'absolute', left: ssX, transform:'translateX(-50%)', color:'rgba(244,197,108,0.6)' }}>☀ ↓ {AppData.sun.sunset}</div>
+            <div style={{ position:'absolute', left: mrX, transform:'translateX(-50%)', top:14, color:'rgba(168,199,255,0.55)' }}>☾ ↑ {AppData.moon.moonrise}</div>
+            <div style={{ position:'absolute', left: msX_clamped, transform:'translateX(-50%)', top:14, color:'rgba(168,199,255,0.55)' }}>☾ ↓ {AppData.moon.moonset}</div>
+          </div>
+
+          {/* Big time bottom-left */}
+          <div className="drift" style={{
+            position:'absolute', left:90, top:560,
+            fontWeight:200, fontSize:220, lineHeight:1, letterSpacing:'-0.02em',
+            fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap',
+            ...driftC
+          }}>
+            {t.hh}<span style={{ color:'var(--type-accent)', opacity:0.55 }}>:</span>{t.mm}
+            {t.ampm && (
+              <span style={{
+                fontSize:42, fontWeight:300, letterSpacing:'0.18em',
+                verticalAlign:'top', marginLeft:18, color:'var(--type-secondary)'
+              }}>{t.ampm}</span>
+            )}
+          </div>
+
+          {/* Status block bottom-right */}
+          <div className="drift" style={{
+            position:'absolute', right:90, top:580, textAlign:'right',
+            fontFamily:"'JetBrains Mono', monospace",
+            fontSize:13, letterSpacing:'0.28em', color:'var(--type-tertiary)',
+            textTransform:'uppercase', lineHeight:2.0,
+            ...driftD
+          }}>
+            <div style={{ color: isDay ? 'var(--type-accent)' : 'var(--type-secondary)' }}>
+              {isDay ? '☀ DAY' : '☾ NIGHT'} · {AppData.weather.condition} {AppData.weather.tempC}°
+            </div>
+            <div>GOLDEN HOUR · {AppData.sun.goldenHour}</div>
+            <div>MOON · {AppData.moon.phase} {AppData.moon.illumPct}%</div>
+            <div>TIDE · HIGH {AppData.tide.heightM}m at {AppData.tide.timeStr}</div>
+            <div style={{ color:'var(--type-tertiary)', opacity:0.7 }}>AIR · AQI {AppData.aqi.value} {AppData.aqi.label}</div>
+          </div>
+        </div>
+      );
+    }
+
+    // =====================================================================
+    // APP — chrome, scroll snap, tweaks, apply
+    // =====================================================================
+    const FACES = [
+      { id:'calm',       name:'Calm',       Component: CalmFace,       blurb:'Manrope 200, sky-tinted type, rotating slot' },
+      { id:'mechanical', name:'Mechanical', Component: MechanicalFace, blurb:'Monospaced, second-tick rail, instrument data' },
+      { id:'departures', name:'Departures', Component: DeparturesFace, blurb:'Solari split-flap board · the signature face' },
+      { id:'editorial',  name:'Editorial',  Component: EditorialFace,  blurb:'Instrument Serif italic, asymmetric, almanac voice' },
+      { id:'horizon',    name:'Horizon',    Component: HorizonFace,    blurb:'The day, drawn — sun arc, horizon, ambient diagram' }
+    ];
+
+    const ACCENTS = [
+      { id:'gold',  hex:'#F4C56C', secondary:'rgba(240, 235, 220, 0.62)' },
+      { id:'sky',   hex:'#9FC6E8', secondary:'rgba(220, 232, 245, 0.62)' },
+      { id:'sage',  hex:'#A9C29A', secondary:'rgba(225, 235, 218, 0.62)' },
+      { id:'paper', hex:'#F0EBDC', secondary:'rgba(240, 235, 220, 0.62)' }
+    ];
+
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "timeFormat": "12h",
+      "drift": 1,
+      "accent": "gold",
+      "showSeconds": false
+    }/*EDITMODE-END*/;
+
+    const STORAGE_KEY = 'solari.clockface';
+
+    function App() {
+      const now = useNow(1000);
+      const [active, setActive] = useState(0);
+      const [tweaks, setTweaks] = useState(() => {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY + '.tweaks');
+          if (raw) return { ...TWEAK_DEFAULTS, ...JSON.parse(raw) };
+        } catch (e) {}
+        return TWEAK_DEFAULTS;
+      });
+      const [showTweaks, setShowTweaks] = useState(false);
+      const [toast, setToast] = useState(null);
+      const scrollRef = useRef(null);
+
+      useEffect(() => {
+        const a = ACCENTS.find(x => x.id === tweaks.accent) || ACCENTS[0];
+        document.documentElement.style.setProperty('--type-accent', a.hex);
+        document.documentElement.style.setProperty('--type-secondary', a.secondary);
+      }, [tweaks.accent]);
+
+      useEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        let t;
+        function onScroll() {
+          clearTimeout(t);
+          t = setTimeout(() => {
+            const idx = Math.round(el.scrollTop / window.innerHeight);
+            setActive(Math.max(0, Math.min(FACES.length - 1, idx)));
+          }, 60);
+        }
+        el.addEventListener('scroll', onScroll, { passive: true });
+        return () => { el.removeEventListener('scroll', onScroll); clearTimeout(t); };
+      }, []);
+
+      function jumpTo(i) {
+        const el = scrollRef.current;
+        if (!el) return;
+        el.scrollTo({ top: i * window.innerHeight, behavior:'smooth' });
+      }
+
+      function setTweak(key, val) {
+        const next = { ...tweaks, [key]: val };
+        setTweaks(next);
+        try { localStorage.setItem(STORAGE_KEY + '.tweaks', JSON.stringify(next)); } catch (e) {}
+      }
+
+      function apply() {
+        const face = FACES[active];
+        try {
+          localStorage.setItem(STORAGE_KEY, face.id);
+          localStorage.setItem(STORAGE_KEY + '.tweaks', JSON.stringify(tweaks));
+          localStorage.setItem(STORAGE_KEY + '.applied_at', new Date().toISOString());
+        } catch (e) {}
+        setToast(face.name.toUpperCase() + ' applied');
+        setTimeout(() => setToast(null), 2400);
+      }
+
+      useEffect(() => {
+        function onKey(e) {
+          if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+          if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'j') jumpTo(Math.min(FACES.length - 1, active + 1));
+          else if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'k') jumpTo(Math.max(0, active - 1));
+          else if (e.key === 'Escape') setShowTweaks(false);
+        }
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+      }, [active]);
+
+      return (
+        <React.Fragment>
+          <div className="topbar">
+            <div>SOLARI · CLOCKFACE</div>
+            <div className="right">
+              <a href="index.html">↩ display</a>
+            </div>
+          </div>
+
+          <div className="dots" role="tablist">
+            {FACES.map((f, i) => (
+              <button key={f.id}
+                className={i === active ? 'is-active' : ''}
+                onClick={() => jumpTo(i)}
+                title={f.name}
+                aria-label={f.name} />
+            ))}
+          </div>
+
+          <div className="pageScroll" ref={scrollRef}>
+            {FACES.map((f, i) => (
+              <section key={f.id} className="faceSection">
+                <FaceStage label={String(i+1).padStart(2,'0') + ' ' + f.name}>
+                  <f.Component now={now} tweaks={tweaks} />
+                </FaceStage>
+              </section>
+            ))}
+          </div>
+
+          {showTweaks && (
+            <div className="tweaks" role="dialog" aria-label="Tweaks">
+              <h4>Tweaks · {FACES[active].name}</h4>
+              <div className="tweakRow">
+                <div className="tweakLabel">Time format</div>
+                <div className="tweakSegment">
+                  {['12h', '24h'].map(v => (
+                    <button key={v} className={tweaks.timeFormat === v ? 'is-active' : ''}
+                      onClick={() => setTweak('timeFormat', v)}>{v}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="tweakRow">
+                <div className="tweakLabel">Drift · burn-in protection</div>
+                <div className="tweakSegment">
+                  {[['Off', 0], ['Subtle', 1], ['Normal', 2], ['Restless', 3]].map(([label, val]) => (
+                    <button key={val} className={tweaks.drift === val ? 'is-active' : ''}
+                      onClick={() => setTweak('drift', val)}>{label}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="tweakRow">
+                <div className="tweakLabel">Accent</div>
+                <div className="swatchRow">
+                  {ACCENTS.map(a => (
+                    <button key={a.id}
+                      className={'swatch' + (tweaks.accent === a.id ? ' is-active' : '')}
+                      style={{ background: a.hex }}
+                      onClick={() => setTweak('accent', a.id)}
+                      aria-label={a.id} />
+                  ))}
+                </div>
+              </div>
+              <div className="tweakRow" style={{ fontSize:10, letterSpacing:'0.18em', color:'var(--type-tertiary)', textTransform:'uppercase', lineHeight:1.5, marginTop:18 }}>
+                Faces tested at 1180×820 (iPad 11”). Time legible from 6 m on every face. Apply writes <code style={{fontFamily:"'JetBrains Mono'"}}>solari.clockface</code> to localStorage; wire <code style={{fontFamily:"'JetBrains Mono'"}}>app.js</code> to read it on boot.
+              </div>
+            </div>
+          )}
+
+          <div className="toolbar">
+            <div className="name">
+              {FACES[active].name}
+              <div style={{ fontSize:10, letterSpacing:'0.18em', color:'var(--type-tertiary)', marginTop:3, textTransform:'none', fontStyle:'italic', fontFamily:"'Instrument Serif', serif" }}>
+                {FACES[active].blurb}
+              </div>
+            </div>
+            <span className="index">{String(active+1).padStart(2,'0')} / {String(FACES.length).padStart(2,'0')}</span>
+            <span className="sep" />
+            <button onClick={() => setShowTweaks(s => !s)}>
+              {showTweaks ? 'Close' : 'Tweaks'}
+            </button>
+            <button className="applyBtn" onClick={apply}>Apply</button>
+          </div>
+
+          {toast && <div className="toast">{toast}</div>}
+        </React.Fragment>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
