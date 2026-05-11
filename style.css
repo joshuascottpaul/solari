@@ -12,6 +12,12 @@
   initial-value: rgba(240, 235, 220, 0.62);
 }
 
+@property --type-tertiary {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(240, 235, 220, 0.42);
+}
+
 @property --type-accent {
   syntax: '<color>';
   inherits: true;
@@ -23,6 +29,7 @@
   --bg: #0a0a0a;
   --type-primary: #F0EBDC;
   --type-secondary: rgba(240, 235, 220, 0.62);
+  --type-tertiary: rgba(240, 235, 220, 0.42);
   --type-accent: #F4C56C;
   --lum-mod: 1;
 
@@ -69,7 +76,7 @@ html, body {
    does not inherit the lag when the user clicks an accent swatch. */
 #display {
   position: relative; width: 100vw; height: 100vh; overflow: hidden;
-  transition: --type-primary 60s linear, --type-secondary 60s linear, --type-accent 60s linear;
+  transition: --type-primary 60s linear, --type-secondary 60s linear, --type-tertiary 60s linear, --type-accent 60s linear;
 }
 
 /* Phase 16: stage primitive. Fixed 1180x820 box, centred and scaled. */
@@ -172,4 +179,152 @@ html, body {
   background: #404040; opacity: 0;
   pointer-events: none; z-index: 100;
   transition: opacity 3s linear;
+}
+
+/* ---------------------------------------------------------------- */
+/* Phase 17: Mechanical face                                         */
+/* ---------------------------------------------------------------- */
+
+#mech-stage {
+  position: absolute; inset: 0;
+}
+
+/* All Mechanical typography is JetBrains Mono 300, tabular figures. */
+#mech-time, #mech-date, .mech-label, .mech-value {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Headline numerals. Anchored at 50% / 44% by JS macro shifts; drift
+   through --time-dx / --time-dy. */
+#mech-time {
+  position: absolute;
+  left: 50%; top: 39%;
+  transform: translate(-50%, -50%) translate(var(--time-dx, 0px), var(--time-dy, 0px));
+  font-size: 236px;
+  line-height: 1;
+  letter-spacing: -0.015em;
+  color: var(--type-primary);
+  white-space: nowrap;
+  transition: left 60s ease-in-out, top 60s ease-in-out;
+  filter: brightness(var(--lum-mod));
+}
+
+#mech-time .mech-colon {
+  color: var(--type-accent);
+  opacity: 0.88;
+  margin: 0 0.04em;
+}
+
+#mech-time .mech-ampm {
+  font-size: 56px;
+  color: var(--type-secondary);
+  margin-left: 0.18em;
+  vertical-align: top;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#mech-time .mech-ampm[hidden] { display: none; }
+
+/* Date strip. */
+#mech-date {
+  position: absolute;
+  left: 50%; top: 25.6%;            /* y=210 / 820 */
+  transform: translate(-50%, -50%) translate(var(--date-dx, 0px), var(--date-dy, 0px));
+  font-size: 18px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--type-tertiary);
+  white-space: nowrap;
+  filter: brightness(var(--lum-mod));
+}
+
+/* Minute-arc hairline. SVG is 1180 wide so it spans the stage; the
+   visible portion is x=80..1100 (1020px wide) at y=4 inside the 8px
+   viewBox. The SVG container is positioned at stage y=261 (height=8)
+   so the centred line sits on y=265 of the stage. */
+#mech-arc {
+  position: absolute;
+  left: 0;
+  top: 261px;
+  width: 1180px;
+  height: 8px;
+  transform: translate(var(--tickRail-dx, 0px), var(--tickRail-dy, 0px));
+  pointer-events: none;
+}
+
+.mech-arc-track {
+  stroke: var(--type-accent);
+  stroke-opacity: 0.08;
+  stroke-width: 1;
+}
+
+.mech-arc-grown {
+  stroke: var(--type-accent);
+  stroke-opacity: 0.35;
+  stroke-width: 1;
+}
+
+.mech-arc-fading {
+  transition: stroke-opacity 600ms linear;
+}
+
+/* Five-column complications grid. Fixed bounds 80..1100 (1020px wide). */
+#mech-grid {
+  position: absolute;
+  left: 80px;
+  top: 580px;
+  width: 1020px;
+  height: 120px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(180px, 1fr));
+  column-gap: 0;
+  /* Hairline divider above the grid (drawn on the top edge). */
+  border-top: 1px solid rgba(240, 235, 220, 0.12);
+  transform: translate(var(--slot-dx, 0px), var(--slot-dy, 0px));
+}
+
+.mech-cell {
+  position: relative;
+  padding: 18px 18px 0 18px;
+  /* Vertical separators between columns (none on the rightmost). */
+  border-right: 1px solid rgba(240, 235, 220, 0.12);
+}
+.mech-cell:last-child { border-right: none; }
+
+.mech-cell-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: opacity 300ms ease-in-out;
+  filter: brightness(var(--lum-mod));
+}
+.mech-cell-inner.is-fading { opacity: 0; }
+
+.mech-label {
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--type-tertiary);
+}
+
+.mech-value {
+  font-size: 22px;
+  color: var(--type-primary);
+  white-space: nowrap;
+}
+
+/* Token colours used inside .mech-value innerHTML. */
+.mech-tok-primary   { color: var(--type-primary); }
+.mech-tok-secondary { color: var(--type-secondary); }
+.mech-tok-tertiary  { color: var(--type-tertiary); }
+.mech-tok-accent    { color: var(--type-accent); opacity: 0.55; }
+
+.mech-tok-ampm {
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--type-tertiary);
 }

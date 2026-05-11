@@ -4,18 +4,18 @@ Active work tracker. CLAUDE.md is for stable reference; this file is for in-flig
 
 ## Active V1 work
 
-- [ ] **Phase 17: Mechanical face** -- spec written at `docs/phase-17-mechanical-face.md` (chihiro design decisions locked, ariadne spec at 954 lines). Implementation pending on branch `phase-17-mechanical`. Next: misaka -> mikasa -> hermione -> shizuku -> leia; optional clarice/coraline/sentry verification before merge to master.
-- [ ] **Phase 18: Departures face** -- split-flap row layout, gold-border bezels. Open question: bezels are filled rectangles, needs explicit burn-in ruling -> ripley for burn-in compliance call before chihiro/ariadne.
+- [x] **Phase 17: Mechanical face** -- shipped 2026-05-11. Spec at `docs/phase-17-mechanical-face.md`. Hermione approved with minor follow-ups resolved inline (ACCENT_PALETTE dual-source comment, `--type-tertiary` 60s transition fix).
+- [ ] **Phase 18: Departures face** -- split-flap row layout, gold-border bezels. Open question: bezels are filled rectangles, needs explicit burn-in ruling -> ripley before chihiro/ariadne. Departures bezel burn-in ruling still gated before chihiro/ariadne spec work begins.
 - [ ] **Phase 19: Editorial face** -- Cormorant Garamond italic time, almanac voice paragraph. New font in budget -> chihiro for typography decisions, then ariadne.
 - [ ] **Phase 20: Horizon face** -- sun and moon arc diagram with hour ticks. New layout primitive (arc) -> chihiro, then ariadne.
 
-## Phase 17 follow-ups (deferred during spec)
+## Phase 17 follow-ups
 
-- [ ] **Layer 3 burn-in ruling** -- Mechanical has no 28-36 s slot churn; spec section 11 argues composite coverage (drift + arc + data churn + macro shift). Hermione to rule during review; if rejected, add manual churn mechanism before ship.
-- [ ] **JetBrains Mono FOUT on first boot** -- accepted as default with `font-display: swap`. Re-evaluate if visible swap is jarring on iPad after first load.
-- [ ] **11 px tertiary label legibility at 2 m** -- specified at 11 px / 0.28em letter-spacing; fallback 12 px / 0.24em. Verify on real iPad Air M4 during implementation, update spec post-hoc.
-- [ ] **Live `timeFormat` toggle in picker preview** -- if picker tweaks panel allows live toggle, TIDE column width jumps. CSS Grid `1fr` handles cleanly; non-blocking. Defer to misaka discretion.
-- [ ] **Picker Calm card conversion to live render** -- Phase 16 Calm preview is hand-built mock. Phase 17 introduces SOLARI_PICKER boot guard; Calm can convert opportunistically once Mechanical lands.
+- [x] **Layer 3 burn-in ruling** -- hermione accepted composite coverage argument (drift + minute-arc growth + data churn + macro rotation) as equivalent to 28-36 s slot churn. No manual churn mechanism needed.
+- [x] **JetBrains Mono FOUT on first boot** -- accepted. `font-display: swap` shipped; visible swap on first boot is acceptable for an always-on ambient display.
+- [ ] **11 px tertiary label legibility at 2 m** -- hardware verification pending. misaka to check on real iPad Air M4; fallback is 12 px / 0.24em tracking. Open for iPad testing by misaka.
+- [ ] **Live `timeFormat` toggle in picker preview** -- CSS Grid `1fr` handles the width jump cleanly; non-blocking. Low priority observation; no action required.
+- [ ] **Picker Calm card conversion to live render** -- Calm preview remains hand-built mock. Deferred per spec; SOLARI_PICKER boot guard is in place for when this is revisited.
 
 ## Phase 16 follow-ups (status check)
 
@@ -26,7 +26,8 @@ Remaining from Phase 16 verification:
 
 ## Tech debt / doc cleanups
 
-- [ ] **Bundle accounting refresh** -- with Phase 17 adding JetBrains Mono 300 (~16-20 KB woff2), re-audit total bundle vs 250 KB target. Currently runtime ~110 KB + picker ~21 KB. Phase 19 will add Cormorant Garamond -> ripley to re-check before Phase 19 lands.
+- [x] **Bundle accounting refresh** -- Phase 17 audit complete: ~145-149 KB cold-cache (including JetBrains Mono 300); ~124 KB headroom against 250 KB target. Phase 19 will add Cormorant Garamond -> ripley to re-check before Phase 19 lands.
+- [ ] **ACCENT_PALETTE three-way sync** -- `ACCENT_PALETTE` in `app.js` is referenced in at least two places (main display and picker preview path). As faces accumulate, the sync surface grows. Consider extraction to a shared constant or config entry by Phase 19. Low priority.
 - [ ] **`data.js` placeholder** -- still in repo, still not loaded (CLAUDE.md line 18). Either delete or document intent. Low priority -> misaka, defer until next housekeeping pass.
 - [ ] **Picker accent doesn't render on Calm preview colon** -- `clockface.js:108` emits plain `<span>:</span>` without `.colon` class, so picker previews of Calm don't show colon-accent feedback. Folds in with the Phase 17 Calm-card-conversion follow-up above.
 

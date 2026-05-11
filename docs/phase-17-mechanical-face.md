@@ -3,7 +3,8 @@
 | Field    | Value                              |
 |----------|------------------------------------|
 | Phase    | 17 of 20 (V1, second face)         |
-| Status   | Draft                              |
+| Status   | Shipped                            |
+| Shipped  | 2026-05-11                         |
 | Date     | 2026-05-11                         |
 | Author   | ariadne                            |
 | Impl     | misaka                             |
@@ -633,7 +634,7 @@ Eight layers, mapped to Mechanical elements:
 | 2 | Pixel-shift safety net | Active via `tickRail` for the arc; via `time`, `date`, `slot` for the rest. `+/- 4 px` every 6 min applies on top of stage-clamped drift. Unchanged from Phase 16. |
 | 3 | Kinetic transitions (Calm) -> distributed churn (Mechanical) | Active via composite coverage. See "Layer 3 trade-off" below. | Mechanical has no `RotatorModule`-driven 28-36 s slot rotation. The function is supplied by a composite of (a) per-element drift (Layer 1), (b) 1 Hz minute-arc growth, (c) data-fetch churn on every column, and (d) the 6 h grid rotation. Composite coverage argument is documented immediately below. |
 | 4 | Macro shifts | Active | Time alternates between two homes every 3 h. Moon is not on the Mechanical face. The grid wrapper does not have its own macro shift; its content rotation (Layer 3) supplies the equivalent burn-in coverage. |
-| 5 | Sky-color modulation | Active | Mechanical participates fully (Q10). All token values (`--type-primary`, `--type-secondary`, `--type-tertiary`, `--type-accent`) modulate on the existing 60 s linear transition. |
+| 5 | Sky-color modulation | Active | Mechanical participates fully (Q10). All four token values (`--type-primary`, `--type-secondary`, `--type-tertiary`, `--type-accent`) modulate on the 60 s linear transition. `--type-tertiary` modulation is a Phase 17 fix: the token existed in V0 but the 60 s linear transition on `#display` omitted it; the omission was invisible on Calm (where tertiary type is sparse) but became visible on Mechanical's 11 px labels and date strip. The transition now covers all four tokens and the fix is applied to `#display` in `style.css`. |
 | 6 | Luminance breath | Active | `filter: brightness(var(--lum-mod))` is applied to `#mech-time`, `#mech-date`, and `.mech-value`. Other elements (labels, arc) inherit `--type-tertiary`/`--type-accent` colour modulation but not the brightness oscillation; the arc and labels are small enough that this is not a burn-in risk. |
 | 7 | Daily refresher | Active | 03:00 fade to `#404040` for 30 s. `#refresher-overlay` sits outside `#stage` (see `index.html:31`) and covers Mechanical identically to Calm. |
 | 8 | Rendering hygiene | Active | Background `#0a0a0a`. Type weight 300 (one step heavier than Calm's 200 but still well below "block" territory). No filled blocks. The 1 px hairlines for the arc and grid separators are well under the "no solid block" threshold. |
