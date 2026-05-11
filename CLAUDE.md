@@ -16,7 +16,7 @@ The authoritative specification is `2026 04 27 10 15 PM - SDD - Ambient Display 
 - **Total bundle target: 250 KB uncompressed.**
 - **Target: iPad Air M4 Safari, landscape, always-on.** Must run continuously for months.
 - Two runtime files: `app.js` (CONFIG, AppState, all modules, render loop) and `style.css`. A single-purpose picker page (`clockface.html`, `clockface.js`) is the justified third JS file; the always-on display never loads it. `data.js` exists as a placeholder but is not loaded.
-- Two vendored libs in `lib/`: `suncalc.js` (MIT, ~3 KB) and `perlin.js` (MIT, ~2 KB).
+- Two vendored libs in `lib/`: `suncalc.js` (MIT, ~9 KB) and `perlin.js` (MIT, ~2 KB).
 - `sw.js`: network-first service worker, registered at boot, enables cache busting for Safari Add-to-Home-Screen installs.
 
 ## Architecture
@@ -106,7 +106,7 @@ No build step. Open `index.html` in a browser or serve locally:
 python3 -m http.server 8000
 ```
 
-Test on iPad Safari for final verification. Layout uses vw/vh units for 1180x820 (11") and 1366x1024 (13") logical viewports.
+Test on iPad Safari for final verification. As of Phase 16, the main display renders into a fixed 1180x820 `#stage` element that is centred and scaled via CSS transform (`--stage-scale`) to fit any viewport; the only remaining vw/vh consumer is the version overlay.
 
 ## Repository Structure
 
@@ -139,3 +139,5 @@ docs/           # phase implementation specs and design notes
 - No em dash -- use commas, semicolons, or separate sentences
 - Brief, factual, calm tone in docs and comments
 - Code should be legible and modular: any module understandable in under 5 minutes (NFR-9)
+
+Active TODO items live in `todo.md`.

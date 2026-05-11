@@ -114,7 +114,7 @@ const DRIFT_INTENSITY_MULT = {
 const ACCENT_PALETTE = {
   gold:  { hex: '#F4C56C', secondary: 'rgba(240, 235, 220, 0.62)' },
   sky:   { hex: '#7FA8C9', secondary: 'rgba(220, 232, 245, 0.62)' },
-  sage:  { hex: '#9CB48A', secondary: 'rgba(225, 235, 218, 0.62)' },
+  sage:  { hex: '#A9C29A', secondary: 'rgba(225, 235, 218, 0.62)' },
   paper: { hex: '#E8E0D0', secondary: 'rgba(240, 235, 220, 0.62)' }
 };
 
