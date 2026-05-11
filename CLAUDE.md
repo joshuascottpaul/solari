@@ -108,6 +108,27 @@ python3 -m http.server 8000
 
 Test on iPad Safari for final verification. As of Phase 16, the main display renders into a fixed 1180x820 `#stage` element that is centred and scaled via CSS transform (`--stage-scale`) to fit any viewport; the only remaining vw/vh consumer is the version overlay.
 
+## Phase Delivery Pipeline
+
+Standard agent flow for shipping a phase, in order:
+
+1. **ripley** -- review handoff or scope, surface architectural risks and decisions needing input
+2. **chihiro** -- resolve design decisions (typography, colour, motion, layout)
+3. **ariadne** -- draft phase spec from locked decisions; revise if open questions need resolution
+4. **misaka** -- implement against the spec
+5. **mikasa** -- simplify the implementation (dead code, premature abstractions, real bug fixes only)
+6. **hermione** -- code review (burn-in, spec adherence, architecture, bundle audit)
+7. **shizuku** -- update docs (CLAUDE.md, README.md, spec status)
+8. **leia** -- commit, push, open PR if required
+
+Optional verification before merge or push to production:
+
+- **clarice** -- live-page diagnostic (console errors, render verification, picker functionality)
+- **coraline** -- visual review (screenshots, calm aesthetic, "no dashboard" check, accent palette)
+- **sentry** -- endurance run (heap, DOM stability, burn-in oscillation, fetch health)
+
+Phase work happens on a feature branch (e.g. `phase-17-mechanical`) so master stays at the last verified state until merge. Verification agents run on the branch before merge.
+
 ## Repository Structure
 
 ```
