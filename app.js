@@ -93,6 +93,12 @@ const CONFIG = {
       [50, 44], [35, 38], [65, 38],
       [50, 52], [40, 46], [60, 46]
     ],
+    // Phase 17: per-face time homes. When the active face id has an entry
+    // here, MacroShifter cycles through this array in place of the global
+    // timeHomes table (and targets the face's own time element id).
+    timeHomesByFace: {
+      mechanical: [[50, 39], [50, 54]]
+    },
     moonIntervalHours: 6,
     moonTransitionSec: 60,
     moonHomes: [
@@ -111,6 +117,8 @@ const DRIFT_INTENSITY_MULT = {
 
 // Phase 16: accent palette. `gold` is the shipped V0 value; sky/sage/paper are
 // chihiro's starting values, flagged for visual tuning in 17-20.
+// DUAL-SOURCE: this block is duplicated in clockface.js (two-file rule, no
+// shared module). Keep both copies in sync when adding/editing keys or hexes.
 const ACCENT_PALETTE = {
   gold:  { hex: '#F4C56C', secondary: 'rgba(240, 235, 220, 0.62)' },
   sky:   { hex: '#7FA8C9', secondary: 'rgba(220, 232, 245, 0.62)' },
@@ -1161,6 +1169,8 @@ const SkyColorModule = {
       `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`);
     root.setProperty('--type-secondary',
       `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.62)`);
+    root.setProperty('--type-tertiary',
+      `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.42)`);
   },
 
   _applyWeatherMod(rgb, [satMult, lightAdd, hueAdd]) {
@@ -1266,10 +1276,11 @@ const DriftEngine = {
   // Phase offsets: large separations so no two elements share a noise region.
   // Each element gets a unique X offset and Y offset.
   _phaseOffsets: {
-    time:  { x: 0,   y: 100 },
-    date:  { x: 200, y: 300 },
-    slot:  { x: 400, y: 500 },
-    moon:  { x: 800, y: 900 }
+    time:     { x: 0,    y: 100  },
+    date:     { x: 200,  y: 300  },
+    slot:     { x: 400,  y: 500  },
+    moon:     { x: 800,  y: 900  },
+    tickRail: { x: 1000, y: 1100 }
   },
 
   // Phase 16: drift intensity multiplier (read from Tweaks at boot).
@@ -1292,7 +1303,8 @@ const DriftEngine = {
     const dc = CONFIG.driftClasses;
     this._entries = [];
 
-    const activeKeys = ['time', 'date', 'slot', 'moon'];
+    // Phase 17: activate tickRail for the Mechanical minute-arc.
+    const activeKeys = ['time', 'date', 'slot', 'moon', 'tickRail'];
 
     for (let i = 0; i < activeKeys.length; i++) {
       const key = activeKeys[i];
@@ -1321,10 +1333,11 @@ const DriftEngine = {
   // Approximate element sizes (half-width, half-height) for viewport clamping.
   // Used to keep elements fully on-screen with a 10px inset margin.
   _elementSizes: {
-    time:    { hw: 400, hh: 80  },
-    date:    { hw: 160, hh: 28  },
-    slot:    { hw: 210, hh: 28  },
-    moon:    { hw: 71,  hh: 71  }
+    time:     { hw: 400, hh: 80 },
+    date:     { hw: 160, hh: 28 },
+    slot:     { hw: 210, hh: 28 },
+    moon:     { hw: 71,  hh: 71 },
+    tickRail: { hw: 510, hh: 4  }
   },
 
   _loop() {
@@ -1380,10 +1393,11 @@ const DriftEngine = {
   // CONFIG.macroShift carries the full list of homes to cycle through; these
   // carry only the current active position (and include date/slot, which never shift).
   _anchorPercents: {
-    time:    { x: 50, y: 44 },
-    date:    { x: 50, y: 66 },
-    slot:    { x: 50, y: 84 },
-    moon:    { x: 84, y: 12 }
+    time:     { x: 50, y: 44 },
+    date:     { x: 50, y: 66 },
+    slot:     { x: 50, y: 84 },
+    moon:     { x: 84, y: 12 },
+    tickRail: { x: 50, y: 32 }
   },
 
   _resolveAnchorX(cssPrefix, vw) {
@@ -1428,13 +1442,31 @@ const MacroShifter = {
   _timeTimerId: null,
   _moonTimerId: null,
 
+  // Phase 17: pick the time-home table per active face. Faces with an
+  // entry in CONFIG.macroShift.timeHomesByFace use that array; otherwise
+  // the global timeHomes table is used. The chosen array length drives
+  // the index modulus, so Mechanical alternates between two homes and
+  // Calm continues to cycle through six.
+  _timeHomes() {
+    var byFace = CONFIG.macroShift.timeHomesByFace;
+    if (byFace && byFace[ACTIVE_FACE_ID]) return byFace[ACTIVE_FACE_ID];
+    return CONFIG.macroShift.timeHomes;
+  },
+
+  // Phase 17: the time element id differs per face. Mechanical paints
+  // its own #mech-time inside the stage; Calm uses #time.
+  _timeElementId() {
+    return ACTIVE_FACE_ID === 'mechanical' ? 'mech-time' : 'time';
+  },
+
   start() {
     if (!CONFIG.macroShift.enabled) return;
 
     // Deterministic initial index from current hour
     var now = new Date();
     var h = now.getHours() + now.getMinutes() / 60;
-    this._timeIndex = Math.floor(h / CONFIG.macroShift.timeIntervalHours) % CONFIG.macroShift.timeHomes.length;
+    var timeHomes = this._timeHomes();
+    this._timeIndex = Math.floor(h / CONFIG.macroShift.timeIntervalHours) % timeHomes.length;
     this._moonIndex = Math.floor(h / CONFIG.macroShift.moonIntervalHours) % CONFIG.macroShift.moonHomes.length;
 
     // Apply initial positions (no transition on first set)
@@ -1453,7 +1485,8 @@ const MacroShifter = {
   },
 
   shiftTime() {
-    this._timeIndex = (this._timeIndex + 1) % CONFIG.macroShift.timeHomes.length;
+    var homes = this._timeHomes();
+    this._timeIndex = (this._timeIndex + 1) % homes.length;
     this._applyTime(true);
   },
 
@@ -1476,11 +1509,13 @@ const MacroShifter = {
   },
 
   _applyTime(withTransition) {
-    var home = CONFIG.macroShift.timeHomes[this._timeIndex];
-    this._applyHome('time', home, CONFIG.macroShift.timeTransitionSec, 'time', withTransition);
+    var home = this._timeHomes()[this._timeIndex];
+    this._applyHome(this._timeElementId(), home, CONFIG.macroShift.timeTransitionSec, 'time', withTransition);
   },
 
   _applyMoon(withTransition) {
+    // Phase 17: Mechanical face has no moon element; skip the moon shift.
+    if (ACTIVE_FACE_ID === 'mechanical') return;
     var home = CONFIG.macroShift.moonHomes[this._moonIndex];
     this._applyHome('moon-disc', home, CONFIG.macroShift.moonTransitionSec, 'moon', withTransition);
   }
@@ -1752,6 +1787,11 @@ const RotatorModule = {
   init() {
     this._slotEl = document.getElementById('slot');
 
+    // Phase 17: Mechanical face has no slot element. RotatorModule continues
+    // to compute rotator.text into AppState (for future faces), but skips
+    // DOM writes when there is nothing to write to.
+    if (!this._slotEl) return;
+
     // Set initial content from first available complication
     const initText = this._nextText();
     this._slotEl.textContent = initText || '';
@@ -1773,7 +1813,7 @@ const RotatorModule = {
       if (preempt !== this._lastPreempt) {
         this._lastPreempt = preempt;
         AppState.rotator.text = preempt;
-        KineticType.animate(this._slotEl, preempt);
+        if (this._slotEl) KineticType.animate(this._slotEl, preempt);
       }
       return;
     }
@@ -1784,7 +1824,7 @@ const RotatorModule = {
     const text = this._nextText();
     if (text === null) return; // all complications null; hold current
     AppState.rotator.text = text;
-    KineticType.animate(this._slotEl, text);
+    if (this._slotEl) KineticType.animate(this._slotEl, text);
   },
 
   _nextText() {
@@ -1844,8 +1884,12 @@ const VersionOverlay = {
   _lastShowTime: 0,      // timestamp of last _show() call for tap debounce
 
   init() {
-    const moon = document.getElementById('moon-disc');
-    if (!moon) return;
+    // Phase 17: gesture surface differs per face. Calm uses the moon disc;
+    // Mechanical has no moon, so the picker entry attaches to the time
+    // numerals (#mech-time). Phases 18-20 will extend this dispatch.
+    const surfaceId = ACTIVE_FACE_ID === 'mechanical' ? 'mech-time' : 'moon-disc';
+    const surface = document.getElementById(surfaceId);
+    if (!surface) return;
 
     // Use localStorage to remember the last version we reloaded into.
     // Without this, the hardcoded CONFIG.build.hash is always stale after
@@ -1896,13 +1940,13 @@ const VersionOverlay = {
     };
 
     if ('ontouchstart' in window) {
-      moon.addEventListener('touchstart', onPressStart, { passive: true });
-      moon.addEventListener('touchend', onPressEnd);
-      moon.addEventListener('touchcancel', onPressCancel);
+      surface.addEventListener('touchstart', onPressStart, { passive: true });
+      surface.addEventListener('touchend', onPressEnd);
+      surface.addEventListener('touchcancel', onPressCancel);
     } else {
-      moon.addEventListener('mousedown', onPressStart);
-      moon.addEventListener('mouseup', onPressEnd);
-      moon.addEventListener('mouseleave', onPressCancel);
+      surface.addEventListener('mousedown', onPressStart);
+      surface.addEventListener('mouseup', onPressEnd);
+      surface.addEventListener('mouseleave', onPressCancel);
     }
   },
 
@@ -1994,35 +2038,40 @@ const DisplayModule = {
     const t = AppState.time;
     const d = AppState.date;
 
-    this._els.hours.textContent = String(t.hours);
-    this._els.minutes.textContent = String(t.minutes).padStart(2, '0');
+    // Phase 17: when the active face is not Calm, its DOM has replaced the
+    // Calm subtree inside #stage; the cached Calm element handles are null.
+    // Skip the Calm-shaped writes and hand off straight to the face.
+    if (this._els.hours) {
+      this._els.hours.textContent = String(t.hours);
+      this._els.minutes.textContent = String(t.minutes).padStart(2, '0');
 
-    if (t.ampm !== null) {
-      this._els.ampm.textContent = t.ampm;
-      this._els.ampm.style.display = '';
-    } else {
-      this._els.ampm.textContent = '';
-      this._els.ampm.style.display = 'none';
-    }
+      if (t.ampm !== null) {
+        this._els.ampm.textContent = t.ampm;
+        this._els.ampm.style.display = '';
+      } else {
+        this._els.ampm.textContent = '';
+        this._els.ampm.style.display = 'none';
+      }
 
-    // Date line: check for observance override
-    const obs = AppState.observance;
-    if (obs) {
-      this._els.dateText.textContent = obs.dateString;
-    } else {
-      this._els.dateText.textContent = d.dayOfWeek + ' \u00B7 ' + d.month + ' ' + d.day + ' \u00B7 ' + d.year;
-    }
+      // Date line: check for observance override
+      const obs = AppState.observance;
+      if (obs) {
+        this._els.dateText.textContent = obs.dateString;
+      } else {
+        this._els.dateText.textContent = d.dayOfWeek + ' \u00B7 ' + d.month + ' ' + d.day + ' \u00B7 ' + d.year;
+      }
 
-    // Moon disc: re-render only when phase value changes
-    if (AppState.moon.phase !== MoonModule._lastRenderedPhase && this._els.moonDisc) {
-      MoonModule.renderDisc(this._els.moonDisc);
-      MoonModule._lastRenderedPhase = AppState.moon.phase;
+      // Moon disc: re-render only when phase value changes
+      if (AppState.moon.phase !== MoonModule._lastRenderedPhase && this._els.moonDisc) {
+        MoonModule.renderDisc(this._els.moonDisc);
+        MoonModule._lastRenderedPhase = AppState.moon.phase;
+      }
     }
 
     // Phase 16: hand off to the active face. Faces are pure renderers; they
     // read AppState/TWEAKS and write DOM. CalmFace.render() is a no-op
-    // (DisplayModule above drives all its DOM writes). Future faces paint
-    // their own subtree here.
+    // (DisplayModule above drives all its DOM writes). Mechanical and later
+    // faces paint their own subtree here.
     ACTIVE_FACE.render(AppState, TWEAKS);
   }
 };
@@ -2091,15 +2140,428 @@ const CalmFace = {
   }
 };
 
-// Phase 16: face registry. Phase 16 ships only `calm`; future faces register
-// themselves here and use the same init/render/teardown contract.
+// Phase 17: Mechanical face. First face after Calm. Monospace tabular
+// composition: 236px HH:MM time, ISO date strip, minute-arc hairline,
+// five-column complications grid. Renders entirely inside #stage from a
+// scratch subtree it builds in init(); the Calm-shaped DOM in index.html
+// is removed first so DisplayModule.init() does not bind to dead nodes.
+// All inner state is local (DOM handles, gating keys); no AppState writes.
+const MechanicalFace = {
+  _els: null,
+  _lastPhaseIndex: null,
+  _lastSecond: null,
+  _lastMinuteKey: null,   // 'timeFormat|HH:MM|ampm'; gates time/date repaints
+  _lastIsoDate: null,
+  _columnPhases: [
+    ['temp', 'air', 'tide', 'moon', 'sun'],
+    ['sun', 'temp', 'air', 'tide', 'moon'],
+    ['moon', 'sun', 'temp', 'air', 'tide'],
+    ['tide', 'moon', 'sun', 'temp', 'air']
+  ],
+  _columnLabels: { temp: 'TEMP', air: 'AIR', tide: 'TIDE', moon: 'MOON', sun: 'SUN' },
+  _moonAbbrev: {
+    'New Moon': 'NEW',
+    'Waxing Crescent': 'WAX CRES',
+    'First Quarter': 'FIRST Q',
+    'Waxing Gibbous': 'WAX GIB',
+    'Full Moon': 'FULL',
+    'Waning Gibbous': 'WAN GIB',
+    'Last Quarter': 'LAST Q',
+    'Waning Crescent': 'WAN CRES'
+  },
+
+  init(stage) {
+    if (!stage) return;
+
+    // Remove the Calm-shaped DOM if present so DisplayModule.init() does not
+    // cache handles to nodes Mechanical does not paint. The picker page does
+    // not have these nodes; the guard makes init idempotent in both contexts.
+    ['time', 'date', 'slot', 'moon-disc'].forEach(function (id) {
+      var el = stage.querySelector('#' + id);
+      if (el) el.remove();
+    });
+    // Re-init removes any prior #mech-stage to guard against double-init.
+    var existing = stage.querySelector('#mech-stage');
+    if (existing) existing.remove();
+
+    var cellsHtml = '';
+    for (var i = 0; i < 5; i++) {
+      cellsHtml +=
+        '<div class="mech-cell" data-cell="' + i + '">' +
+          '<div class="mech-cell-inner">' +
+            '<div class="mech-label"></div>' +
+            '<div class="mech-value"></div>' +
+          '</div>' +
+        '</div>';
+    }
+
+    var root = document.createElement('div');
+    root.id = 'mech-stage';
+    root.innerHTML =
+      '<div id="mech-time">' +
+        '<span class="mech-hours">--</span>' +
+        '<span class="mech-colon">:</span>' +
+        '<span class="mech-minutes">--</span>' +
+        '<span class="mech-ampm" hidden></span>' +
+      '</div>' +
+      '<div id="mech-date"></div>' +
+      '<svg id="mech-arc" viewBox="0 0 1180 8" preserveAspectRatio="none" aria-hidden="true">' +
+        '<line class="mech-arc-track" x1="80" y1="4" x2="1100" y2="4"/>' +
+        '<line class="mech-arc-grown" x1="80" y1="4" x2="80" y2="4"/>' +
+      '</svg>' +
+      '<div id="mech-grid">' + cellsHtml + '</div>';
+    stage.appendChild(root);
+
+    this._els = {
+      root: root,
+      time: root.querySelector('#mech-time'),
+      hours: root.querySelector('.mech-hours'),
+      colon: root.querySelector('.mech-colon'),
+      minutes: root.querySelector('.mech-minutes'),
+      ampm: root.querySelector('.mech-ampm'),
+      date: root.querySelector('#mech-date'),
+      arc: root.querySelector('#mech-arc'),
+      arcGrown: root.querySelector('.mech-arc-grown'),
+      grid: root.querySelector('#mech-grid'),
+      cells: Array.from(root.querySelectorAll('.mech-cell'))
+    };
+    this._lastPhaseIndex = null;
+    this._lastSecond = null;
+    this._lastMinuteKey = null;
+    this._lastIsoDate = null;
+  },
+
+  render(state, tweaks) {
+    if (!this._els) return;
+    var mt = (tweaks && tweaks.byFace && tweaks.byFace.mechanical) || {};
+    var timeFormat = mt.timeFormat === '12h' ? '12h' : '24h';
+    this._renderTime(state, timeFormat);
+    this._renderDate(state);
+    this._renderArc(state);
+    this._renderGrid(state, timeFormat, mt.previewMode === true);
+  },
+
+  teardown() {
+    if (this._els && this._els.root) this._els.root.remove();
+    this._els = null;
+    this._lastPhaseIndex = null;
+    this._lastSecond = null;
+    this._lastMinuteKey = null;
+    this._lastIsoDate = null;
+  },
+
+  // ---- Internal helpers ----
+
+  _renderTime(state, timeFormat) {
+    var t = state.time;
+    var h24 = (typeof t.hours === 'number') ? t.hours : 0;
+    // AppState.time.hours follows CONFIG.display.timeFormat. The headline
+    // tweak `timeFormat` overrides for Mechanical only.
+    if (t.ampm) {
+      // AppState already in 12h form (1..12); convert back if face wants 24h.
+      // ampm + hours uniquely identify h24: 12 AM = 0, 12 PM = 12, etc.
+      if (t.ampm === 'AM') {
+        h24 = (t.hours === 12) ? 0 : t.hours;
+      } else {
+        h24 = (t.hours === 12) ? 12 : t.hours + 12;
+      }
+    }
+
+    var hh, mm, ampm;
+    if (timeFormat === '12h') {
+      var h12 = h24 % 12;
+      if (h12 === 0) h12 = 12;
+      hh = String(h12);  // no leading zero in 12h headline
+      ampm = h24 < 12 ? 'AM' : 'PM';
+    } else {
+      hh = String(h24).padStart(2, '0');
+      ampm = null;
+    }
+    mm = String(t.minutes).padStart(2, '0');
+
+    var minuteKey = timeFormat + '|' + hh + ':' + mm + '|' + (ampm || '');
+    if (minuteKey === this._lastMinuteKey) return;
+    this._lastMinuteKey = minuteKey;
+
+    var els = this._els;
+    els.hours.textContent = hh;
+    els.minutes.textContent = mm;
+    if (ampm) {
+      els.ampm.textContent = ampm;
+      els.ampm.hidden = false;
+    } else {
+      els.ampm.textContent = '';
+      els.ampm.hidden = true;
+    }
+  },
+
+  _renderDate(state) {
+    // Spec template: `MON · 2026.05.11`. Mechanical inherits observance
+    // colour modulation through --type-primary / --type-accent but does not
+    // surface the observance dateString in this strip; the date stays
+    // factual and uniform-width to preserve the grid rhythm.
+    var iso = state.date.isoDate || '';
+    if (iso === this._lastIsoDate) return;
+    this._lastIsoDate = iso;
+    if (!iso) { this._els.date.textContent = ''; return; }
+    var day = state.date.dayOfWeek || '';
+    var dow = day ? day.slice(0, 3).toUpperCase() : '---';
+    var isoDot = iso.replace(/-/g, '.');
+    this._els.date.textContent = dow + ' · ' + isoDot;
+  },
+
+  _renderArc(state) {
+    var sec = state.time.seconds | 0;
+    var grown = this._els.arcGrown;
+    if (!grown) return;
+    // 80 + (sec/60) * 1020 grows from 80 to 1100 over a minute.
+    var x2 = 80 + (sec / 60) * 1020;
+    grown.setAttribute('x2', x2.toFixed(1));
+
+    // At second 0 (minute boundary), clone the prior grown line and fade
+    // it out over 600ms while the live grown line restarts at x=80.
+    if (sec === 0 && this._lastSecond === 59) {
+      var arc = this._els.arc;
+      // Read current state of the line BEFORE we reset it
+      var fader = grown.cloneNode(true);
+      // Clone reflects the value already written above (x2=80); we want the
+      // pre-reset value (x2=1100). Reset target first, then set fader to 1100.
+      fader.setAttribute('x2', '1100');
+      fader.classList.add('mech-arc-fading');
+      arc.appendChild(fader);
+      grown.setAttribute('x2', '80');
+      // Force layout so the transition triggers on the next style change
+      // eslint-disable-next-line no-unused-expressions
+      fader.getBoundingClientRect();
+      fader.style.strokeOpacity = '0';
+      fader.addEventListener('transitionend', function () {
+        if (fader.parentNode) fader.parentNode.removeChild(fader);
+      }, { once: true });
+      // Safety: also remove after 1.5s in case transitionend never fires
+      // (off-screen rendering, suspended tab, etc.).
+      setTimeout(function () {
+        if (fader.parentNode) fader.parentNode.removeChild(fader);
+      }, 1500);
+    }
+    this._lastSecond = sec;
+  },
+
+  _renderGrid(state, timeFormat, previewMode) {
+    var phaseIdx = this._activePhaseIndex(previewMode);
+    var indexChanged = (phaseIdx !== this._lastPhaseIndex);
+    var firstPaint = (this._lastPhaseIndex === null);
+
+    if (indexChanged && !firstPaint) {
+      this._crossfadeColumns(phaseIdx, state, timeFormat);
+    } else {
+      // Steady-state paint or first paint: write any cells whose underlying
+      // data hash changed since the last tick.
+      this._paintCells(phaseIdx, state, timeFormat, false);
+    }
+    this._lastPhaseIndex = phaseIdx;
+  },
+
+  _activePhaseIndex(previewMode) {
+    if (previewMode) {
+      var sec = Math.floor(performance.now() / 1000);
+      return Math.floor(sec / 6) % 4;
+    }
+    var now = new Date();
+    var h = now.getHours() + now.getMinutes() / 60;
+    return Math.floor(h / 6) % 4;
+  },
+
+  _paintCells(phaseIdx, state, timeFormat, force) {
+    var order = this._columnPhases[phaseIdx];
+    for (var i = 0; i < 5; i++) {
+      var key = order[i];
+      var cell = this._els.cells[i];
+      if (!cell) continue;
+      var hash = this._cellHash(key, state, timeFormat);
+      if (!force && cell._mechHash === hash) continue;
+      cell._mechHash = hash;
+      var inner = cell.firstElementChild;       // .mech-cell-inner
+      if (!inner) continue;
+      var labelEl = inner.querySelector('.mech-label');
+      var valueEl = inner.querySelector('.mech-value');
+      if (labelEl) labelEl.textContent = this._columnLabels[key] || '';
+      if (valueEl) valueEl.innerHTML = this._cellHtml(key, state, timeFormat);
+    }
+  },
+
+  _crossfadeColumns(phaseIdx, state, timeFormat) {
+    // Per-column: 300ms fade-out, content swap at opacity 0, 300ms fade-in.
+    // Stagger: 60ms between adjacent columns. Each timeout writes only its own
+    // cell so earlier columns are not re-written after they've faded back in.
+    var self = this;
+    var order = this._columnPhases[phaseIdx];
+    var cells = this._els.cells;
+    for (var i = 0; i < 5; i++) {
+      (function (idx) {
+        var cell = cells[idx];
+        if (!cell) return;
+        var inner = cell.firstElementChild;
+        if (!inner) return;
+        setTimeout(function () {
+          inner.classList.add('is-fading');
+          setTimeout(function () {
+            var key = order[idx];
+            var labelEl = inner.querySelector('.mech-label');
+            var valueEl = inner.querySelector('.mech-value');
+            if (labelEl) labelEl.textContent = self._columnLabels[key] || '';
+            if (valueEl) valueEl.innerHTML = self._cellHtml(key, state, timeFormat);
+            cell._mechHash = self._cellHash(key, state, timeFormat);
+            inner.classList.remove('is-fading');
+          }, 300);
+        }, idx * 60);
+      })(i);
+    }
+  },
+
+  _cellHash(key, state, timeFormat) {
+    if (key === 'temp') return 'temp|' + state.weather.tempC + '|' + state.weather.condition;
+    if (key === 'air')  return 'air|' + state.aqi.value + '|' + state.aqi.band;
+    if (key === 'tide') return 'tide|' + state.tide.type + '|' + state.tide.heightM + '|' + state.tide.time + '|' + timeFormat;
+    if (key === 'moon') return 'moon|' + state.moon.phaseName + '|' + Math.round((state.moon.illumination || 0) * 100);
+    if (key === 'sun')  return 'sun|' + state.sun.sunrise + '|' + state.sun.sunset + '|' + timeFormat;
+    return '';
+  },
+
+  _cellHtml(key, state, timeFormat) {
+    if (key === 'temp') return this._tempHtml(state);
+    if (key === 'air')  return this._airHtml(state);
+    if (key === 'tide') return this._tideHtml(state, timeFormat);
+    if (key === 'moon') return this._moonHtml(state);
+    if (key === 'sun')  return this._sunHtml(state, timeFormat);
+    return '';
+  },
+
+  // Phase 17.1: tight abbreviations for multi-word conditions. Full strings
+  // (PARTLY CLOUDY, THUNDERSTORM, etc.) overflow the 204 px TEMP column at
+  // 22 px JetBrains Mono 300. The .mech-cell overflow:hidden is a safety net;
+  // these abbreviations keep the value inside the box without clipping.
+  _CONDITION_ABBR: {
+    'PARTLY CLOUDY':    'P CLOUDY',
+    'MOSTLY CLOUDY':    'M CLOUDY',
+    'PARTLY SUNNY':     'P SUNNY',
+    'MOSTLY SUNNY':     'M SUNNY',
+    'LIGHT RAIN':       'L RAIN',
+    'HEAVY RAIN':       'H RAIN',
+    'LIGHT SNOW':       'L SNOW',
+    'HEAVY SNOW':       'H SNOW',
+    'THUNDERSTORM':     'T STORM',
+    'FREEZING RAIN':    'F RAIN',
+    'FREEZING DRIZZLE': 'F DRIZZLE'
+  },
+
+  _tempHtml(state) {
+    var t = state.weather.tempC;
+    var cond = state.weather.condition;
+    if (t === null || t === undefined || cond === null || cond === undefined) {
+      return '<span class="mech-tok-tertiary">—</span>';
+    }
+    var sign = t >= 0 ? '+' : '';
+    var condStr = String(cond).replace(/_/g, ' ').toUpperCase();
+    if (this._CONDITION_ABBR[condStr]) condStr = this._CONDITION_ABBR[condStr];
+    return '<span class="mech-tok-primary">' + sign + t + '°</span> ' +
+           '<span class="mech-tok-secondary">' + condStr + '</span>';
+  },
+
+  _airHtml(state) {
+    var v = state.aqi.value;
+    if (v === null || v === undefined) {
+      return '<span class="mech-tok-tertiary">—</span>';
+    }
+    var band = state.aqi.band || '';
+    var bandStr = String(band).replace(/_/g, ' ').toUpperCase();
+    var vs = String(v).padStart(3, '0');
+    return '<span class="mech-tok-primary">' + vs + '</span> ' +
+           '<span class="mech-tok-secondary">' + bandStr + '</span>';
+  },
+
+  _tideHtml(state, timeFormat) {
+    var type = state.tide.type;
+    if (!type) {
+      // Tide-specific null preserves visual length.
+      return '<span class="mech-tok-tertiary">— —M —:—</span>';
+    }
+    var letter = type === 'high' ? 'H' : 'L';
+    var hM = (state.tide.heightM === null || state.tide.heightM === undefined)
+      ? '—M'
+      : Number(state.tide.heightM).toFixed(1) + 'M';
+    var timeStr = state.tide.time || '';
+    var timeBits = this._parseTime(timeStr, timeFormat);
+    var out =
+      '<span class="mech-tok-tertiary">' + letter + '</span> ' +
+      '<span class="mech-tok-primary">' + hM + '</span> ' +
+      '<span class="mech-tok-tertiary">' + timeBits.digits + '</span>';
+    if (timeBits.ampm) {
+      out += ' <span class="mech-tok-ampm">' + timeBits.ampm + '</span>';
+    }
+    return out;
+  },
+
+  // Parse a time string into formatted display bits for the requested format.
+  // Accepts 'HH:MM', 'H:MM AM', ISO 8601 strings (tide and sun column inputs).
+  // Returns { digits: string, ampm: string|null }.
+  _parseTime(raw, timeFormat) {
+    if (!raw) return { digits: '—:—', ampm: null };
+    var m = /(\d{1,2}):(\d{2})(?:\s*(AM|PM))?/i.exec(raw);
+    if (!m) return { digits: '—:—', ampm: null };
+    var hh = parseInt(m[1], 10);
+    var mm = m[2];
+    var ap = m[3] ? m[3].toUpperCase() : null;
+    // If the source string carries an AM/PM tag, reconstruct h24 first so we
+    // can re-format for the face's own timeFormat tweak.
+    if (ap) {
+      hh = (ap === 'AM') ? (hh === 12 ? 0 : hh) : (hh === 12 ? 12 : hh + 12);
+    }
+    if (timeFormat === '12h') {
+      var h12 = hh % 12; if (h12 === 0) h12 = 12;
+      return { digits: h12 + ':' + mm, ampm: hh < 12 ? 'AM' : 'PM' };
+    }
+    return { digits: String(hh).padStart(2, '0') + ':' + mm, ampm: null };
+  },
+
+  _moonHtml(state) {
+    var name = state.moon.phaseName;
+    if (!name) return '<span class="mech-tok-tertiary">—</span>';
+    var abbrev = this._moonAbbrev[name];
+    if (!abbrev) abbrev = String(name).slice(0, 8).toUpperCase();
+    var pct = Math.round((state.moon.illumination || 0) * 100);
+    return '<span class="mech-tok-primary">' + abbrev + '</span> ' +
+           '<span class="mech-tok-primary">' + pct + '%</span>';
+  },
+
+  _sunHtml(state, timeFormat) {
+    var rise = state.sun.sunrise;
+    var set  = state.sun.sunset;
+    if (!rise || !set) return '<span class="mech-tok-tertiary">—</span>';
+    var r = this._parseTime(rise, timeFormat);
+    var s = this._parseTime(set,  timeFormat);
+    // Phase 17.1: drop AM/PM tokens in SUN 12h mode. Sunrise is always AM,
+    // sunset always PM; the arrow glyphs already encode rise vs set, so the
+    // suffix is redundant and pushes the value over the 204 px column width.
+    var out =
+      '<span class="mech-tok-accent">↑</span> ' +
+      '<span class="mech-tok-primary">' + r.digits + '</span>' +
+      ' <span class="mech-tok-accent">↓</span> ' +
+      '<span class="mech-tok-primary">' + s.digits + '</span>';
+    return out;
+  }
+};
+
+// Phase 16: face registry. Phase 17 registers `mechanical`; future faces
+// register themselves here and use the same init/render/teardown contract.
+const MECHANICAL_TIME_FORMATS = ['24h', '12h'];
+
 const ClockfaceRegistry = {
   faces: {
-    calm: CalmFace
-    // mechanical: MechanicalFace,   // Phase 17
-    // departures: DeparturesFace,   // Phase 18
-    // editorial:  EditorialFace,    // Phase 19
-    // horizon:    HorizonFace       // Phase 20
+    calm: CalmFace,
+    mechanical: MechanicalFace        // Phase 17
+    // departures: DeparturesFace,    // Phase 18
+    // editorial:  EditorialFace,     // Phase 19
+    // horizon:    HorizonFace        // Phase 20
   },
 
   resolve(faceId) {
@@ -2119,13 +2581,27 @@ const ClockfaceRegistry = {
       parsed = raw;
     }
     if (!parsed || typeof parsed !== 'object') {
-      return { accent: def.accent, driftIntensity: def.driftIntensity, byFace: {} };
+      return {
+        accent: def.accent,
+        driftIntensity: def.driftIntensity,
+        byFace: { mechanical: { timeFormat: '24h', previewMode: false } }
+      };
     }
     const accent = ACCENT_PALETTE[parsed.accent] ? parsed.accent : def.accent;
     const driftIntensity = (DRIFT_INTENSITY_MULT[parsed.driftIntensity] !== undefined)
       ? parsed.driftIntensity
       : def.driftIntensity;
     const byFace = (parsed.byFace && typeof parsed.byFace === 'object') ? parsed.byFace : {};
+
+    // Phase 17: normalise mechanical sub-object. previewMode is always
+    // coerced to a boolean and is never persisted by the picker on Apply.
+    const mech = (byFace.mechanical && typeof byFace.mechanical === 'object')
+      ? byFace.mechanical
+      : {};
+    const tf = MECHANICAL_TIME_FORMATS.indexOf(mech.timeFormat) >= 0 ? mech.timeFormat : '24h';
+    const pm = mech.previewMode === true;
+    byFace.mechanical = { timeFormat: tf, previewMode: pm };
+
     return { accent: accent, driftIntensity: driftIntensity, byFace: byFace };
   },
 
@@ -2144,17 +2620,39 @@ const ClockfaceRegistry = {
   }
 };
 
-// Phase 16: face dispatch state. Set in boot(); read by DisplayModule.render().
+// Face dispatch state. Set in boot(); read by MacroShifter and VersionOverlay
+// before boot() runs would produce stale 'calm' values. Both modules are only
+// ever called after boot() has set the real values, so the default here is safe.
+// Invariant: do not read ACTIVE_FACE_ID before the boot() IIFE assigns it.
 let ACTIVE_FACE = CalmFace;
+let ACTIVE_FACE_ID = CONFIG.clockface.defaultFaceId;
 let TWEAKS = { accent: 'gold', driftIntensity: 'normal', byFace: {} };
 
+// Phase 17: window-scope exports so clockface.js can drive face renders in
+// the picker without duplicating face code. The picker sets
+// window.SOLARI_PICKER = true before loading app.js; the boot IIFE returns
+// early on that flag, leaving these face objects available for picker use.
+window.CalmFace = CalmFace;
+window.MechanicalFace = MechanicalFace;
+window.ClockfaceRegistry = ClockfaceRegistry;
+
 (function boot() {
+  // Phase 17: picker boot guard. When app.js loads inside clockface.html, the
+  // picker has set window.SOLARI_PICKER = true to suppress fetchers, timers,
+  // the render loop, and the storage-event reload. Face class objects above
+  // are already exported on window for the picker to drive directly.
+  if (window.SOLARI_PICKER) return;
+
   // Phase 16: read storage and resolve face + tweaks
-  const FACE_ID = localStorage.getItem('solari.clockface') || CONFIG.clockface.defaultFaceId;
+  ACTIVE_FACE_ID = localStorage.getItem('solari.clockface') || CONFIG.clockface.defaultFaceId;
   TWEAKS = ClockfaceRegistry.normalizeTweaks(
     localStorage.getItem('solari.clockface.tweaks')
   );
-  ACTIVE_FACE = ClockfaceRegistry.resolve(FACE_ID);
+  ACTIVE_FACE = ClockfaceRegistry.resolve(ACTIVE_FACE_ID);
+  // If resolve() fell back to default, sync the id so per-face branches agree.
+  if (!ClockfaceRegistry.faces[ACTIVE_FACE_ID]) {
+    ACTIVE_FACE_ID = CONFIG.clockface.defaultFaceId;
+  }
 
   // Apply accent and drift intensity tweaks before module starts so the first
   // paint already reflects them. SkyColorModule.update() and DriftEngine.start()
@@ -2165,7 +2663,8 @@ let TWEAKS = { accent: 'gold', driftIntensity: 'normal', byFace: {} };
   // Stage scaffolding (creates #stage if missing, attaches resize listener)
   const stage = Stage.init();
 
-  // Initialise the active face (Phase 16: CalmFace adopts the static DOM)
+  // Initialise the active face. CalmFace adopts the static DOM; MechanicalFace
+  // (and later faces) build their own subtree inside #stage and remove Calm's.
   ACTIVE_FACE.init(stage);
 
   DisplayModule.init();

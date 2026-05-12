@@ -4,26 +4,35 @@ Active work tracker. CLAUDE.md is for stable reference; this file is for in-flig
 
 ## Active V1 work
 
-- [ ] **Phase 17: Mechanical face** -- tabular Manrope/JetBrains Mono, minute-arc replaces second rail (`docs/phase-17-*.md` not yet written) -- next: chihiro for design decisions (new visual language), then ariadne for spec.
-- [ ] **Phase 18: Departures face** -- split-flap row layout, gold-border bezels. Open question: bezels are filled rectangles, needs explicit burn-in ruling -> ripley for burn-in compliance call before chihiro/ariadne.
+- [x] **Phase 17: Mechanical face** -- shipped 2026-05-11. Spec at `docs/phase-17-mechanical-face.md`. Hermione approved with minor follow-ups resolved inline (ACCENT_PALETTE dual-source comment, `--type-tertiary` 60s transition fix).
+- [ ] **Phase 18: Departures face** -- split-flap row layout, gold-border bezels. Open question: bezels are filled rectangles, needs explicit burn-in ruling -> ripley before chihiro/ariadne. Departures bezel burn-in ruling still gated before chihiro/ariadne spec work begins.
 - [ ] **Phase 19: Editorial face** -- Cormorant Garamond italic time, almanac voice paragraph. New font in budget -> chihiro for typography decisions, then ariadne.
 - [ ] **Phase 20: Horizon face** -- sun and moon arc diagram with hour ticks. New layout primitive (arc) -> chihiro, then ariadne.
 
-## Phase 16 follow-ups (from clarice/coraline/sentry)
+## Phase 17 follow-ups
 
-- [ ] **Colon does not consume `--type-accent`** -- `style.css` has no `#time .colon { color: var(--type-accent); }` rule (only `.char--flash` at style.css:152). Changing accent gold/sky/sage/paper has no visible effect on the resting display. One-line fix. Caveat: ObservanceModule will re-tint colon on holidays once wired -> ripley to rule on whether holidays should override accent, then misaka one-liner.
-- [ ] **Sage hex mismatch** -- shipped `#9CB48A` at `app.js:117` and `clockface.js:25`; SDD section 8 specifies `#A9C29A`. Coraline reads shipped value as muddy/forest; chihiro flagged the same risk earlier -> chihiro for final hex call (align to spec vs. iterate), then misaka.
-- [ ] **Picker preview is hand-built mock, not live CalmFace** -- `clockface.js:43-44` comments acknowledge static HTML. Acceptable for Phase 16; should be converted to live face instance during Phase 17 when face render contract is exercised for a second face -> ariadne to fold into Phase 17 spec.
+- [x] **Layer 3 burn-in ruling** -- hermione accepted composite coverage argument (drift + minute-arc growth + data churn + macro rotation) as equivalent to 28-36 s slot churn. No manual churn mechanism needed.
+- [x] **JetBrains Mono FOUT on first boot** -- accepted. `font-display: swap` shipped; visible swap on first boot is acceptable for an always-on ambient display.
+- [ ] **11 px tertiary label legibility at 2 m** -- hardware verification pending. misaka to check on real iPad Air M4; fallback is 12 px / 0.24em tracking. Open for iPad testing by misaka.
+- [ ] **Live `timeFormat` toggle in picker preview** -- CSS Grid `1fr` handles the width jump cleanly; non-blocking. Low priority observation; no action required.
+- [ ] **Picker Calm card conversion to live render** -- Calm preview remains hand-built mock. Deferred per spec; SOLARI_PICKER boot guard is in place for when this is revisited.
+
+## Phase 16 follow-ups (status check)
+
+Phase 16.1 patch (`6832629`) closed: colon accent fix, sage hex aligned to `#A9C29A`, suncalc.js doc size, Development section refresh, `todo.md` pointer added.
+
+Remaining from Phase 16 verification:
+- [ ] **Long-press affordance discoverability** -- coraline flagged moon disc has dual function (short tap = VersionOverlay, long press 600 ms = picker) with no visible indication. If deployment model is single-user setup, accept as hidden gesture. If guests/family need to discover, add subtle ring or first-boot hint -> deferred until usage signal.
 
 ## Tech debt / doc cleanups
 
-- [ ] **`suncalc.js` size doc** -- CLAUDE.md line 19 says `~3 KB`; actual file is 9116 bytes (~9 KB). Pre-Phase-16 stale doc -> misaka (trivial edit).
-- [ ] **Development section mentions vw/vh only** -- CLAUDE.md line 109 says "Layout uses vw/vh units for 1180x820 and 1366x1024 logical viewports." Phase 16 moved the main display to a fixed 1180x820 stage with CSS transform scaling (style.css:29-82); vw/vh now only applies to version-overlay -> misaka (edit to reflect stage primitive + scale-to-viewport).
-- [ ] **Bundle accounting refresh** -- with Phase 16 additions, runtime is now `app.js + style.css + suncalc + perlin + index.html + sw.js + manifest.json` plus `clockface.{html,js}` for picker. Total runtime ~110 KB; picker adds ~21 KB. Under 250 KB budget but should be re-audited once Phase 19 adds Cormorant Garamond and Phase 17 adds JetBrains Mono (memory note flags 30-50 KB per woff2) -> ripley to re-check before Phase 19 lands.
+- [x] **Bundle accounting refresh** -- Phase 17 audit complete: ~145-149 KB cold-cache (including JetBrains Mono 300); ~124 KB headroom against 250 KB target. Phase 19 will add Cormorant Garamond -> ripley to re-check before Phase 19 lands.
+- [ ] **ACCENT_PALETTE three-way sync** -- `ACCENT_PALETTE` in `app.js` is referenced in at least two places (main display and picker preview path). As faces accumulate, the sync surface grows. Consider extraction to a shared constant or config entry by Phase 19. Low priority.
+- [ ] **`data.js` placeholder** -- still in repo, still not loaded (CLAUDE.md line 18). Either delete or document intent. Low priority -> misaka, defer until next housekeeping pass.
+- [ ] **Picker accent doesn't render on Calm preview colon** -- `clockface.js:108` emits plain `<span>:</span>` without `.colon` class, so picker previews of Calm don't show colon-accent feedback. Folds in with the Phase 17 Calm-card-conversion follow-up above.
 
 ## Reserved / future
 
-- [ ] **Per-face drift amplitude policy** -- design handoff prototypes used 1-4 px drift; current Solari uses 16-60 px. Memory note `project_v1_face_picker.md` flags this needs a decision before any face beyond Calm ships. CalmFace currently inherits global drift; per-face overrides via TWEAKS not yet specified -> chihiro/ripley joint call when Phase 17 spec opens.
 - [ ] **Departures bezel burn-in ruling** -- handoff justifies `#16140f` filled bezels behind flap chars as small enough not to violate "no solid blocks" (layer 8). Needs explicit ripley sign-off before Phase 18 -> ripley before Phase 18 spec.
-- [ ] **New font budget** -- JetBrains Mono (Phase 17) and Cormorant Garamond / Instrument Serif (Phase 19) each ~30-50 KB woff2. Subset to needed glyphs only; lazy-load per-face -> ariadne to design font-loading strategy in Phase 17 spec.
-- [ ] **`data.js` placeholder** -- still in repo, still not loaded (CLAUDE.md line 18). Either delete or document intent. Low priority -> misaka, defer until next housekeeping pass.
+- [ ] **Per-face accent surfaces** -- Calm uses colon; Mechanical adds minute-arc; Departures will add imminent-row tint; Editorial/Horizon TBD. As faces accumulate, consider a per-face `accentTargets` declaration in CONFIG to make the surface explicit. Not needed until Phase 18 or Phase 19.
+- [ ] **Hot-swap face change (avoid full reload on Apply)** -- Phase 16 chose `location.reload()` on storage event. `teardown()` shape exists on the face contract but is never called. If face changes become more frequent (e.g. scheduled time-of-day switching), revisit -> low priority.

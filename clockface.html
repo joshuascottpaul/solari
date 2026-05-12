@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300&display=swap">
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="data:,">
   <title>Solari -- Clockface</title>
@@ -286,9 +287,18 @@
       <h3>Accent</h3>
       <div class="swatches" id="swatches"></div>
     </div>
+    <div class="tweaks-row" id="row-mech-format" hidden>
+      <h3>Mechanical Time Format</h3>
+      <div class="seg" id="seg-mech-format">
+        <button class="seg-btn" data-val="24h">24h</button>
+        <button class="seg-btn" data-val="12h">12h</button>
+      </div>
+    </div>
   </div>
   <div class="toast" id="toast">CALM APPLIED</div>
   <script src="lib/perlin.js"></script>
+  <script>window.SOLARI_PICKER = true;</script>
+  <script src="app.js"></script>
   <script src="clockface.js"></script>
 </body>
 </html>

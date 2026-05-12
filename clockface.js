@@ -2,23 +2,29 @@
 // loaded only when the user long-presses the moon disc (or navigates here
 // directly). The always-on display never loads this file.
 //
-// Phase 16: only Calm renders a real face. The other four entries render
-// placeholder cards. Apply is disabled when a placeholder is active.
+// Phase 17: Calm and Mechanical render real faces. The picker loads app.js
+// with window.SOLARI_PICKER = true so the boot IIFE returns early; only the
+// face class objects are exported (window.MechanicalFace etc). Departures,
+// Editorial, and Horizon remain placeholder cards.
 
 (function () {
   // Mirrors of the main app's CONFIG.driftClasses entries. Kept in sync
-  // by hand; the picker is a separate page and does not import app.js.
+  // by hand; the picker is a separate page. tickRail mirrors the entry
+  // Phase 17 activates on the runtime side.
   const DRIFT_CLASSES = {
-    time: { ampX: 24, ampY: 18, periodSec: 117, phaseX: 0,   phaseY: 100 },
-    date: { ampX: 12, ampY: 8,  periodSec: 89,  phaseX: 200, phaseY: 300 },
-    slot: { ampX: 12, ampY: 8,  periodSec: 143, phaseX: 400, phaseY: 500 },
-    moon: { ampX: 18, ampY: 12, periodSec: 73,  phaseX: 800, phaseY: 900 }
+    time:     { ampX: 24, ampY: 18, periodSec: 117, phaseX: 0,    phaseY: 100  },
+    date:     { ampX: 12, ampY: 8,  periodSec: 89,  phaseX: 200,  phaseY: 300  },
+    slot:     { ampX: 12, ampY: 8,  periodSec: 143, phaseX: 400,  phaseY: 500  },
+    moon:     { ampX: 18, ampY: 12, periodSec: 73,  phaseX: 800,  phaseY: 900  },
+    tickRail: { ampX: 4,  ampY: 3,  periodSec: 79,  phaseX: 1000, phaseY: 1100 }
   };
 
   const DRIFT_INTENSITY_MULT = {
     off: 0.0, subtle: 0.5, normal: 1.0, restless: 1.5
   };
 
+  // DUAL-SOURCE: this block is duplicated in app.js ACCENT_PALETTE (two-file
+  // rule, no shared module). Keep both copies in sync when editing keys or hexes.
   const ACCENT_PALETTE = {
     gold:  { hex: '#F4C56C', secondary: 'rgba(240, 235, 220, 0.62)' },
     sky:   { hex: '#7FA8C9', secondary: 'rgba(220, 232, 245, 0.62)' },
@@ -32,16 +38,34 @@
     byFace: {}
   };
 
+  const MECHANICAL_TIME_FORMATS = ['24h', '12h'];
+
   const FACES = [
-    { id: 'calm',       name: 'Calm',       blurb: 'type weight 200, slow drift, single slot',     phase: 16, real: true },
-    { id: 'mechanical', name: 'Mechanical', blurb: 'second rail, instrument grid, JetBrains Mono', phase: 17, real: false },
-    { id: 'departures', name: 'Departures', blurb: 'split-flap board, gold imminent rows',         phase: 18, real: false },
-    { id: 'editorial',  name: 'Editorial',  blurb: 'asymmetric two-column, italic time',           phase: 19, real: false },
-    { id: 'horizon',    name: 'Horizon',    blurb: 'sun and moon arcs, hour ticks',                phase: 20, real: false }
+    { id: 'calm',       name: 'Calm',       blurb: 'type weight 200, slow drift, single slot',     phase: 16, real: true,  liveRender: false },
+    { id: 'mechanical', name: 'Mechanical', blurb: 'monospace grid, minute-arc, JetBrains Mono',   phase: 17, real: true,  liveRender: true  },
+    { id: 'departures', name: 'Departures', blurb: 'split-flap board, gold imminent rows',         phase: 18, real: false, liveRender: false },
+    { id: 'editorial',  name: 'Editorial',  blurb: 'asymmetric two-column, italic time',           phase: 19, real: false, liveRender: false },
+    { id: 'horizon',    name: 'Horizon',    blurb: 'sun and moon arcs, hour ticks',                phase: 20, real: false, liveRender: false }
   ];
 
-  // Deterministic preview state will be added here by Phases 17-20 to seed live
-  // face renders in the picker. Phase 16's Calm preview is static HTML.
+  // Phase 17: deterministic preview state shared across live face renders.
+  // The picker advances PREVIEW_STATE.time once per second so live faces
+  // animate plausibly without touching network or real-time state.
+  const PREVIEW_STATE = {
+    time: { hours: 14, minutes: 32, seconds: 0, ampm: null },
+    date: { dayOfWeek: 'Monday', day: 11, month: 'May', year: 2026, isoDate: '2026-05-11' },
+    sun:  { sunrise: '05:22', sunset: '20:47', dayLengthMin: 925, altitude: 12, azimuth: 220 },
+    moon: { phase: 0.18, illumination: 0.18, phaseName: 'Waxing Crescent', terminatorAngle: 0 },
+    weather: { tempC: 12, condition: 'PARTLY_CLOUDY', code: 2 },
+    aqi:  { value: 24, pm25: 6, band: 'good' },
+    tide: { type: 'high', heightM: 4.3, time: '04:22' },
+    alert: null,
+    alertPreempt: null,
+    almanac: null,
+    rotator: { text: '', index: 0 },
+    observance: null,
+    meta: { bootedAt: Date.now(), lastUpdate: {} }
+  };
 
   function normalizeTweaks(raw) {
     const def = TWEAK_DEFAULTS;
@@ -52,13 +76,28 @@
       parsed = raw;
     }
     if (!parsed || typeof parsed !== 'object') {
-      return { accent: def.accent, driftIntensity: def.driftIntensity, byFace: {} };
+      return {
+        accent: def.accent,
+        driftIntensity: def.driftIntensity,
+        byFace: { mechanical: { timeFormat: '24h', previewMode: false } }
+      };
     }
     const accent = ACCENT_PALETTE[parsed.accent] ? parsed.accent : def.accent;
     const driftIntensity = (DRIFT_INTENSITY_MULT[parsed.driftIntensity] !== undefined)
       ? parsed.driftIntensity
       : def.driftIntensity;
     const byFace = (parsed.byFace && typeof parsed.byFace === 'object') ? parsed.byFace : {};
+
+    // Phase 17: normalise mechanical sub-object. Mirrors app.js's
+    // ClockfaceRegistry.normalizeTweaks (duplicate-by-design: clockface.html
+    // and index.html share no module system).
+    const mech = (byFace.mechanical && typeof byFace.mechanical === 'object')
+      ? byFace.mechanical
+      : {};
+    const tf = MECHANICAL_TIME_FORMATS.indexOf(mech.timeFormat) >= 0 ? mech.timeFormat : '24h';
+    const pm = mech.previewMode === true;
+    byFace.mechanical = { timeFormat: tf, previewMode: pm };
+
     return { accent: accent, driftIntensity: driftIntensity, byFace: byFace };
   }
 
@@ -79,6 +118,8 @@
   const tweaksEl = document.getElementById('tweaks');
   const swatchesEl = document.getElementById('swatches');
   const segDrift = document.getElementById('seg-drift');
+  const segMechFormat = document.getElementById('seg-mech-format');
+  const rowMechFormat = document.getElementById('row-mech-format');
   const btnTweaks = document.getElementById('btn-tweaks');
   const btnApply = document.getElementById('btn-apply');
   const toolbarName = document.getElementById('toolbar-name');
@@ -98,7 +139,7 @@
     stage.className = 'preview-stage';
     stage.dataset.faceId = face.id;
 
-    if (face.real && face.id === 'calm') {
+    if (face.id === 'calm') {
       stage.innerHTML =
         '<svg class="pv-moon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
           '<circle cx="50" cy="50" r="48" fill="var(--type-primary)" opacity="0.06"/>' +
@@ -110,6 +151,20 @@
         '</div>' +
         '<div class="pv-date">WEDNESDAY &middot; MAY 7</div>' +
         '<div class="pv-slot">SUNSET 8:47 PM</div>';
+    } else if (face.liveRender && face.id === 'mechanical' && window.MechanicalFace) {
+      // Phase 17: live preview via window.MechanicalFace exported by app.js.
+      // The face needs an element with id="stage" to mount its subtree; the
+      // preview-stage div serves that role inside the picker card.
+      stage.id = 'stage-' + face.id;
+      window.MechanicalFace.init(stage);
+      // First paint at init so the card is not blank before the 1 Hz loop fires.
+      try {
+        window.MechanicalFace.render(PREVIEW_STATE, {
+          accent: draftTweaks.accent,
+          driftIntensity: draftTweaks.driftIntensity,
+          byFace: { mechanical: { timeFormat: '24h', previewMode: true } }
+        });
+      } catch (e) { /* swallow first-paint errors */ }
     } else {
       const ph = document.createElement('div');
       ph.className = 'placeholder';
@@ -152,6 +207,18 @@
   segDrift.querySelectorAll('.seg-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       draftTweaks.driftIntensity = btn.dataset.val;
+      renderTweaksUI();
+    });
+  });
+
+  // Phase 17: segmented Mechanical time format control. Only meaningful when
+  // Mechanical is the active face; the row is hidden otherwise.
+  segMechFormat.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      draftTweaks.byFace = draftTweaks.byFace || {};
+      const mech = draftTweaks.byFace.mechanical || { timeFormat: '24h', previewMode: false };
+      mech.timeFormat = btn.dataset.val;
+      draftTweaks.byFace.mechanical = mech;
       renderTweaksUI();
     });
   });
@@ -248,6 +315,52 @@
   }
   requestAnimationFrame(driftLoop);
 
+  // Phase 17: drive live face renders on a 1 Hz interval. The interval
+  // advances PREVIEW_STATE.time once per second so the minute-arc grows
+  // visibly; the day-of-week and date strings stay frozen at seeded values.
+  // previewTweaks() forces previewMode=true for the mechanical sub-object
+  // so the 6h column rotation compresses to a 6s cycle in the picker.
+  function previewTweaks() {
+    const byFace = (draftTweaks.byFace && typeof draftTweaks.byFace === 'object')
+      ? draftTweaks.byFace : {};
+    const mech = (byFace.mechanical && typeof byFace.mechanical === 'object')
+      ? byFace.mechanical : { timeFormat: '24h' };
+    return {
+      accent: draftTweaks.accent,
+      driftIntensity: draftTweaks.driftIntensity,
+      byFace: Object.assign({}, byFace, {
+        mechanical: Object.assign({}, mech, { previewMode: true })
+      })
+    };
+  }
+
+  const liveFaces = FACES.filter(f => f.liveRender);
+  let previewClockId = null;
+  if (liveFaces.length) {
+    previewClockId = setInterval(() => {
+      PREVIEW_STATE.time.seconds = (PREVIEW_STATE.time.seconds + 1) % 60;
+      if (PREVIEW_STATE.time.seconds === 0) {
+        PREVIEW_STATE.time.minutes = (PREVIEW_STATE.time.minutes + 1) % 60;
+      }
+      // Only render if the card is in view; off-screen cards retain their
+      // last-painted state until the user scrolls them back into view.
+      const tweaks = previewTweaks();
+      liveFaces.forEach(face => {
+        const idx = FACES.indexOf(face);
+        const stage = stageEls[idx];
+        if (!visibleStages.has(stage)) return;
+        if (face.id === 'mechanical' && window.MechanicalFace) {
+          try { window.MechanicalFace.render(PREVIEW_STATE, tweaks); }
+          catch (e) { /* swallow render errors so the loop keeps ticking */ }
+        }
+      });
+    }, 1000);
+    window.addEventListener('pagehide', () => {
+      if (previewClockId !== null) clearInterval(previewClockId);
+      previewClockId = null;
+    });
+  }
+
   // -------- Tweak application + UI sync --------
 
   function applyTweaksToPreview() {
@@ -265,6 +378,11 @@
     // Drift segmented
     segDrift.querySelectorAll('.seg-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.val === draftTweaks.driftIntensity);
+    });
+    // Phase 17: mechanical time format segmented
+    const mechTf = (draftTweaks.byFace && draftTweaks.byFace.mechanical && draftTweaks.byFace.mechanical.timeFormat) || '24h';
+    segMechFormat.querySelectorAll('.seg-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.val === mechTf);
     });
     applyTweaksToPreview();
   }
@@ -289,6 +407,9 @@
     // Apply button enabled only on real faces
     btnApply.disabled = !face.real;
 
+    // Phase 17: show mechanical-specific tweak row only when Mechanical is active.
+    if (rowMechFormat) rowMechFormat.hidden = (face.id !== 'mechanical');
+
     if (scroll) {
       sectionEls[i].scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -299,9 +420,15 @@
   function apply() {
     const face = FACES[activeIndex];
     if (!face.real) return;
+    // Phase 17: previewMode is picker-only edge state; strip it before persist
+    // so the main display never sees previewMode=true.
+    const persistable = JSON.parse(JSON.stringify(draftTweaks));
+    if (persistable.byFace && persistable.byFace.mechanical) {
+      delete persistable.byFace.mechanical.previewMode;
+    }
     try {
       localStorage.setItem('solari.clockface', face.id);
-      localStorage.setItem('solari.clockface.tweaks', JSON.stringify(draftTweaks));
+      localStorage.setItem('solari.clockface.tweaks', JSON.stringify(persistable));
       localStorage.setItem('solari.clockface.applied_at', new Date().toISOString());
     } catch (e) {
       console.warn('clockface: localStorage write failed', e);
