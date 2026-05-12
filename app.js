@@ -47,7 +47,15 @@ const CONFIG = {
     sun:          { ampX: 18, ampY: 12, periodSec: 101 },
     horizon:      { ampX: 18, ampY: 12, periodSec: 101 },
     departureRow: { ampX: 6,  ampY: 4,  periodSec: 61  },
-    tickRail:     { ampX: 4,  ampY: 3,  periodSec: 79  }
+    tickRail:     { ampX: 4,  ampY: 3,  periodSec: 79  },
+    // Phase 19: per-face amplitude override for the `time` channel.
+    // Period is shared (117 s); only ampX/ampY differ. DriftEngine reads
+    // CONFIG.driftClasses.timeByFace[FACE_ID] and falls back to `time` when
+    // no entry exists. Editorial's 360 px italic numerals warrant a higher
+    // amplitude to compensate for the largest static type in the project.
+    timeByFace: {
+      editorial: { ampX: 30, ampY: 22 }
+    }
   },
   // Per-face drift channels. DriftEngine.start() reads this instead of a
   // switch statement, so adding Phase 19/20 faces requires only a new row here.
@@ -59,7 +67,11 @@ const CONFIG = {
     mechanical: ['time', 'date', 'slot', 'tickRail'],
     departures: ['time', 'date', 'tickRail',
                  'departureRow0', 'departureRow1', 'departureRow2',
-                 'departureRow3', 'departureRow4']
+                 'departureRow3', 'departureRow4'],
+    // Phase 19: Editorial has no moon and no departureRow channels.
+    // `time` (per-face amp 30/22), `date` (right-column block),
+    // `slot` (paragraph), `tickRail` (footer strip).
+    editorial:  ['time', 'date', 'slot', 'tickRail']
   },
   pixelShift: {
     intervalMin: 6,
@@ -113,7 +125,25 @@ const CONFIG = {
     // dispatch on ACTIVE_FACE_ID === 'departures'.
     timeHomesByFace: {
       mechanical: [[50, 39], [50, 54]],
-      departures: [[0, 0], [0, -30]]
+      departures: [[0, 0], [0, -30]],
+      // Phase 19: Editorial uses pixel coords (top-left anchor) rather
+      // than percent. MacroShifter auto-detects pixel vs percent by entry
+      // value range (any value > 100 -> pixels). Two homes alternated on
+      // a 6 h interval (see timeIntervalHoursByFace).
+      editorial: [[100, 200], [560, 200]]
+    },
+    // Phase 19: per-face interval override. Editorial and Horizon shift
+    // every 6 h; faces without an entry use the global timeIntervalHours
+    // (3 h). MacroShifter reads this when scheduling its time interval.
+    timeIntervalHoursByFace: {
+      editorial: 6,
+      horizon: 6
+    },
+    // Phase 19: paired right-column block homes. When set, MacroShifter
+    // mirrors a second element (#ed-right) on the same interval so the
+    // top-half composition swaps as a unit. Pixel coords (top-left anchor).
+    rightBlockHomesByFace: {
+      editorial: [[850, 220], [290, 220]]
     },
     moonIntervalHours: 6,
     moonTransitionSec: 60,
@@ -881,20 +911,31 @@ const AlmanacModule = {
 };
 
 const ObservanceModule = {
+  // Phase 19: `name_long` is the editorial dropline phrase, rendered by
+  // EditorialFace when the active observance has `treatment === 'light'`.
+  // Other faces ignore the field. Major treatments may also carry it
+  // (Editorial reserves the dropline for light treatments per chihiro's lock).
   _builtIn: [
-    { name: 'CHRISTMAS DAY',    date: '12-25', glyph: '\u2744', treatment: 'major',
+    { name: 'CHRISTMAS DAY',    name_long: 'Christmas Day, December 25.',
+      date: '12-25', glyph: '\u2744', treatment: 'major',
       palette: { mode: 'override', primary: '#F4C56C' }, slotEntry: 'CHRISTMAS DAY' },
-    { name: "NEW YEAR'S DAY",   date: '01-01', glyph: '\u2726', treatment: 'major',
+    { name: "NEW YEAR'S DAY",   name_long: "New Year's Day, January 1.",
+      date: '01-01', glyph: '\u2726', treatment: 'major',
       palette: { mode: 'override', primary: '#C8D4E8' }, slotEntry: "NEW YEAR'S DAY" },
-    { name: 'SPRING EQUINOX',   date: 'equinox-spring', glyph: '\u273F', treatment: 'light',
+    { name: 'SPRING EQUINOX',   name_long: 'Equinox, March 20.',
+      date: 'equinox-spring', glyph: '\u273F', treatment: 'light',
       palette: { mode: 'tint', hueShift: 30, satShift: 0 } },
-    { name: 'SUMMER SOLSTICE',  date: 'solstice-summer', glyph: '\u2609', treatment: 'light',
+    { name: 'SUMMER SOLSTICE',  name_long: 'Solstice, June 21.',
+      date: 'solstice-summer', glyph: '\u2609', treatment: 'light',
       palette: { mode: 'tint', hueShift: 10, satShift: 10 } },
-    { name: 'FALL EQUINOX',     date: 'equinox-fall', glyph: '\u2766', treatment: 'light',
+    { name: 'FALL EQUINOX',     name_long: 'Equinox, September 22.',
+      date: 'equinox-fall', glyph: '\u2766', treatment: 'light',
       palette: { mode: 'tint', hueShift: 20, satShift: 5 } },
-    { name: 'WINTER SOLSTICE',  date: 'solstice-winter', glyph: '\u263E', treatment: 'light',
+    { name: 'WINTER SOLSTICE',  name_long: 'Solstice, December 21.',
+      date: 'solstice-winter', glyph: '\u263E', treatment: 'light',
       palette: { mode: 'tint', hueShift: -25, satShift: 0 } },
-    { name: 'HALLOWEEN',        date: '10-31', glyph: '\u25D0', treatment: 'light',
+    { name: 'HALLOWEEN',        name_long: "Hallowe'en, October 31.",
+      date: '10-31', glyph: '\u25D0', treatment: 'light',
       palette: { mode: 'tint', hueShift: 45, satShift: -10 } }
   ],
 
@@ -949,6 +990,10 @@ const ObservanceModule = {
       const day = now.getDate();
       AppState.observance = {
         name: winner.name,
+        // Phase 19: editorial dropline phrase. Null when authors omit it.
+        // EditorialFace renders the dropline only when this is non-null AND
+        // treatment === 'light'.
+        name_long: winner.name_long || null,
         glyph: winner.glyph,
         treatment: winner.treatment,
         palette: winner.palette,
@@ -1342,6 +1387,25 @@ const DriftEngine = {
     this._rootStyle = document.documentElement.style;
     this._startTime = performance.now() / 1000;
 
+    // Phase 19: seed `time` anchor from per-face home A when the active face
+    // uses pixel-coord homes (top-left anchored). Without this, the first
+    // rAF frame clamps against the default center anchor (590, 361) while
+    // the actual element center may be elsewhere (e.g. Editorial home A
+    // centers at 340, 362). MacroShifter.start() corrects this on its first
+    // _applyTime, but seeding here avoids the first-frame artifact.
+    const homes = CONFIG.macroShift.timeHomesByFace[ACTIVE_FACE_ID];
+    const sizes = this._elementSizesByFace
+                && this._elementSizesByFace[ACTIVE_FACE_ID]
+                && this._elementSizesByFace[ACTIVE_FACE_ID].time;
+    if (homes && sizes && homes[0][0] > 100) {
+      const cx = homes[0][0] + sizes.hw;
+      const cy = homes[0][1] + sizes.hh;
+      this._anchorPercents.time = {
+        x: (cx / CONFIG.stage.width) * 100,
+        y: (cy / CONFIG.stage.height) * 100
+      };
+    }
+
     // Register Phase 16 active drift classes. Reserved classes (sun, horizon,
     // departureRow, tickRail) are declared in CONFIG.driftClasses but not
     // mounted here until their faces ship.
@@ -1360,11 +1424,22 @@ const DriftEngine = {
       // 'departureRow' class config; everything else maps directly by key.
       const classKey = key.indexOf('departureRow') === 0 ? 'departureRow' : key;
       const cfg = dc[classKey];
+      // Phase 19: per-face amplitude overrides for the `time` channel.
+      // CONFIG.driftClasses.timeByFace[ACTIVE_FACE_ID] supplies ampX/ampY
+      // (period stays the same so coprime spacing is preserved). Other
+      // channels are unchanged. Future faces follow the same hook.
+      let ampX = cfg.ampX;
+      let ampY = cfg.ampY;
+      if (key === 'time' && dc.timeByFace && dc.timeByFace[ACTIVE_FACE_ID]) {
+        const ov = dc.timeByFace[ACTIVE_FACE_ID];
+        if (typeof ov.ampX === 'number') ampX = ov.ampX;
+        if (typeof ov.ampY === 'number') ampY = ov.ampY;
+      }
       const phase = this._phaseOffsets[key];
       this._entries.push({
         cssPrefix: key,
-        ampX: cfg.ampX,
-        ampY: cfg.ampY,
+        ampX: ampX,
+        ampY: ampY,
         periodSec: cfg.periodSec,
         phaseX: phase.x,
         phaseY: phase.y
@@ -1383,6 +1458,9 @@ const DriftEngine = {
 
   // Approximate element sizes (half-width, half-height) for viewport clamping.
   // Used to keep elements fully on-screen with a 10px inset margin.
+  // Phase 19: time amends per active face -- Editorial's 360 px italic
+  // numerals occupy a larger box than Calm/Mechanical, so the clamp uses
+  // a wider half-extent when ACTIVE_FACE_ID === 'editorial'.
   _elementSizes: {
     time:          { hw: 400, hh: 80 },
     date:          { hw: 160, hh: 28 },
@@ -1395,6 +1473,15 @@ const DriftEngine = {
     departureRow2: { hw: 510, hh: 18 },
     departureRow3: { hw: 510, hh: 18 },
     departureRow4: { hw: 510, hh: 18 }
+  },
+  // Phase 19: per-face element-size overrides. When the active face has an
+  // entry here, the clamp uses these half-extents instead of the base table.
+  // Editorial's HH:MM at 360 px italic is ~480 px wide x ~324 px tall;
+  // half-extents 240/162 keep the clamp accurate without over-clamping drift.
+  _elementSizesByFace: {
+    editorial: {
+      time: { hw: 240, hh: 162 }
+    }
   },
 
   _loop() {
@@ -1417,7 +1504,10 @@ const DriftEngine = {
       let dy = e.ampY * mult * perlin1d(sampleY) + shiftY;
 
       // Stage-box clamping: keep the element's bounding box within a 10px inset
-      const size = this._elementSizes[e.cssPrefix];
+      // Phase 19: per-face override (Editorial's 360 px time numerals).
+      let size = this._elementSizes[e.cssPrefix];
+      const byFace = this._elementSizesByFace[ACTIVE_FACE_ID];
+      if (byFace && byFace[e.cssPrefix]) size = byFace[e.cssPrefix];
       if (size) {
         let anchorX = e._anchorPxX;
         let anchorY = e._anchorPxY;
@@ -1516,30 +1606,64 @@ const MacroShifter = {
     return CONFIG.macroShift.timeHomes;
   },
 
-  // Phase 17: the time element id differs per face. Mechanical paints
-  // its own #mech-time inside the stage; Calm uses #time.
+  // Phase 19: per-face interval override. Editorial and Horizon shift on
+  // a 6 h cadence; faces without an entry fall back to the global 3 h.
+  _timeIntervalHours() {
+    var byFace = CONFIG.macroShift.timeIntervalHoursByFace;
+    if (byFace && typeof byFace[ACTIVE_FACE_ID] === 'number') {
+      return byFace[ACTIVE_FACE_ID];
+    }
+    return CONFIG.macroShift.timeIntervalHours;
+  },
+
+  // Phase 19: paired-block table. When present, _applyTime mirrors a second
+  // element on the same interval/transition so the composition swaps as one.
+  // Editorial uses this for #ed-right; other faces have no entry.
+  _rightBlockHomes() {
+    var byFace = CONFIG.macroShift.rightBlockHomesByFace;
+    if (byFace && byFace[ACTIVE_FACE_ID]) return byFace[ACTIVE_FACE_ID];
+    return null;
+  },
+
+  // Phase 17/19: the time element id differs per face. Mechanical paints
+  // its own #mech-time inside the stage; Editorial uses #ed-time; Calm uses #time.
   _timeElementId() {
-    return ACTIVE_FACE_ID === 'mechanical' ? 'mech-time' : 'time';
+    if (ACTIVE_FACE_ID === 'mechanical') return 'mech-time';
+    if (ACTIVE_FACE_ID === 'editorial')  return 'ed-time';
+    return 'time';
+  },
+
+  // Phase 19: detect pixel vs percent home format. Calm and Mechanical use
+  // percent (0..100); Editorial uses top-left pixel coords (any value > 100).
+  // Mixed-format tables within one face are not supported (spec Section 7).
+  _homesArePixels(homes) {
+    if (!homes || !homes.length) return false;
+    for (var i = 0; i < homes.length; i++) {
+      var h = homes[i];
+      if (h && (h[0] > 100 || h[1] > 100)) return true;
+    }
+    return false;
   },
 
   start() {
     if (!CONFIG.macroShift.enabled) return;
 
-    // Deterministic initial index from current hour
+    // Deterministic initial index from current hour, using the per-face interval.
     var now = new Date();
     var h = now.getHours() + now.getMinutes() / 60;
+    var intervalH = this._timeIntervalHours();
     var timeHomes = this._timeHomes();
-    this._timeIndex = Math.floor(h / CONFIG.macroShift.timeIntervalHours) % timeHomes.length;
+    this._timeIndex = Math.floor(h / intervalH) % timeHomes.length;
     this._moonIndex = Math.floor(h / CONFIG.macroShift.moonIntervalHours) % CONFIG.macroShift.moonHomes.length;
 
     // Apply initial positions (no transition on first set)
     this._applyTime(false);
     this._applyMoon(false);
 
-    // Schedule recurring shifts
+    // Schedule recurring shifts. Editorial/Horizon read per-face interval.
     this._timeTimerId = setInterval(
       () => this.shiftTime(),
-      CONFIG.macroShift.timeIntervalHours * 60 * 60 * 1000
+      intervalH * 60 * 60 * 1000
     );
     this._moonTimerId = setInterval(
       () => this.shiftMoon(),
@@ -1558,7 +1682,11 @@ const MacroShifter = {
     this._applyMoon(true);
   },
 
-  _applyHome(elementId, home, transitionSec, anchorKey, withTransition) {
+  // Phase 19: _applyHome now accepts a `unit` parameter ('%' or 'px') so the
+  // same path serves Calm/Mechanical (percent) and Editorial (pixels). The
+  // anchorKey is updated only when the home is in percent; pixel anchors
+  // (Editorial) use the stage-pixel coords as-is for clamping.
+  _applyHome(elementId, home, transitionSec, anchorKey, withTransition, unit) {
     var el = document.getElementById(elementId);
     if (!el) return;
     if (withTransition) {
@@ -1566,9 +1694,28 @@ const MacroShifter = {
     } else {
       el.style.transition = 'none';
     }
-    el.style.left = home[0] + '%';
-    el.style.top = home[1] + '%';
-    DriftEngine.updateAnchor(anchorKey, home[0], home[1]);
+    var u = unit || '%';
+    el.style.left = home[0] + u;
+    el.style.top = home[1] + u;
+    if (anchorKey) {
+      // For percent homes, write directly. For pixel homes (Editorial),
+      // convert the top-left pixel home into the element's centre in percent
+      // so DriftEngine's clamp resolves a sensible anchor (the clamp math
+      // assumes centre-anchored elements via translate(-50%, -50%)).
+      // Editorial's #ed-time is anchored top-left, so we add the element's
+      // half-extents from DriftEngine._elementSizes before converting.
+      if (u === '%') {
+        DriftEngine.updateAnchor(anchorKey, home[0], home[1]);
+      } else {
+        var w = CONFIG.stage.width, hgt = CONFIG.stage.height;
+        var size = DriftEngine._elementSizes[anchorKey];
+        var byFaceSize = DriftEngine._elementSizesByFace[ACTIVE_FACE_ID];
+        if (byFaceSize && byFaceSize[anchorKey]) size = byFaceSize[anchorKey];
+        var cx = home[0] + (size ? size.hw : 0);
+        var cy = home[1] + (size ? size.hh : 0);
+        DriftEngine.updateAnchor(anchorKey, (cx / w) * 100, (cy / hgt) * 100);
+      }
+    }
   },
 
   _applyTime(withTransition) {
@@ -1582,15 +1729,32 @@ const MacroShifter = {
       document.documentElement.style.setProperty('--dep-upper-shift-y', depHome[1] + 'px');
       return;
     }
-    var home = this._timeHomes()[this._timeIndex];
-    this._applyHome(this._timeElementId(), home, CONFIG.macroShift.timeTransitionSec, 'time', withTransition);
+    var timeHomes = this._timeHomes();
+    var home = timeHomes[this._timeIndex];
+    var unit = this._homesArePixels(timeHomes) ? 'px' : '%';
+    this._applyHome(this._timeElementId(), home, CONFIG.macroShift.timeTransitionSec, 'time', withTransition, unit);
+
+    // Phase 19: paired-block mirror. Editorial swaps #ed-right alongside
+    // #ed-time on the same 6 h cadence, so the magazine composition flips
+    // as one. Other faces have no rightBlockHomesByFace entry and skip this.
+    var rightHomes = this._rightBlockHomes();
+    if (rightHomes && rightHomes.length) {
+      var rightHome = rightHomes[this._timeIndex % rightHomes.length];
+      var rightUnit = this._homesArePixels(rightHomes) ? 'px' : '%';
+      // anchorKey is null: #ed-right drifts via the `date` channel; its
+      // clamp anchor stays at the channel default. Macro shift writes
+      // left/top directly without disturbing DriftEngine's clamp origin.
+      this._applyHome('ed-right', rightHome, CONFIG.macroShift.timeTransitionSec, null, withTransition, rightUnit);
+    }
   },
 
   _applyMoon(withTransition) {
-    // Mechanical and Departures have no moon disc; skip the moon shift.
-    if (ACTIVE_FACE_ID === 'mechanical' || ACTIVE_FACE_ID === 'departures') return;
+    // Mechanical, Departures, and Editorial have no moon disc.
+    if (ACTIVE_FACE_ID === 'mechanical' ||
+        ACTIVE_FACE_ID === 'departures' ||
+        ACTIVE_FACE_ID === 'editorial') return;
     var home = CONFIG.macroShift.moonHomes[this._moonIndex];
-    this._applyHome('moon-disc', home, CONFIG.macroShift.moonTransitionSec, 'moon', withTransition);
+    this._applyHome('moon-disc', home, CONFIG.macroShift.moonTransitionSec, 'moon', withTransition, '%');
   }
 };
 
@@ -1960,9 +2124,11 @@ const VersionOverlay = {
     // Phase 17: gesture surface differs per face. Calm uses the moon disc;
     // Mechanical has no moon, so the picker entry attaches to the time
     // numerals (#mech-time). Phase 18: Departures attaches to #dep-time.
+    // Phase 19: Editorial attaches to #ed-time (no moon disc).
     let surfaceId;
     if (ACTIVE_FACE_ID === 'mechanical') surfaceId = 'mech-time';
     else if (ACTIVE_FACE_ID === 'departures') surfaceId = 'dep-time';
+    else if (ACTIVE_FACE_ID === 'editorial') surfaceId = 'ed-time';
     else surfaceId = 'moon-disc';
     const surface = document.getElementById(surfaceId);
     if (!surface) return;
@@ -3224,9 +3390,501 @@ const DeparturesFace = {
   }
 };
 
+// Phase 19: Editorial face. Magazine-cover italic time (Cormorant Garamond
+// 300 italic, 360 px), paired right-column block (kicker + weekday + month-
+// day), rotating literary almanac paragraph cross-faded every 32 s with
+// 1200 ms transition, observance dropline for light treatments, 4-column
+// footer of facts. First face with a per-face drift amplitude override
+// (time: 30/22) and per-face macro shift interval (6 h vs global 3 h).
+// Builds its own DOM subtree inside #stage in init(); removes Calm-shaped
+// nodes first so DisplayModule does not bind to dead handles. All inner
+// state is local; no AppState writes.
+const EditorialFace = {
+  _els: null,
+  _lastMinuteKey: null,         // 'timeFormat|HH:MM|ampm'; gates time + kicker repaint
+  _lastIsoDate: null,           // gates weekday/month-day repaint
+  _lastTemplateId: null,        // gates paragraph cross-fade
+  _lastObservanceName: null,    // gates dropline repaint
+  _lastFooterHashes: ['', '', '', ''],  // per-cell DOM-write gating
+  _lastWindowIdx: -1,           // 32 s rotation window index (live or accelerated)
+  _fadeTimerId: null,           // setTimeout handle for cross-fade content swap
+  _previewMode: false,
+
+  // Phase 19: paragraph templates. Selection is gated by (period, weather,
+  // moon); ungated fields match any value. The hash distributes among the
+  // candidate set so the same tuple maps deterministically to one template
+  // within a 32 s window.
+  _PARAGRAPH_TEMPLATES: [
+    { id: 'morning-clear',
+      gate: { period: ['morning'], weather: ['clear'] },
+      copy: 'Light comes early this morning. The harbour holds still.' },
+    { id: 'evening-clear',
+      gate: { period: ['evening'], weather: ['clear'] },
+      copy: 'The sky cools toward the inlet. Sunset at <em>{sunset}</em>.' },
+    { id: 'fog-day',
+      gate: { period: ['morning', 'afternoon', 'evening'], weather: ['fog'] },
+      copy: 'Fog folds across the city. Visibility holds at <em>{visibility}</em>.' },
+    { id: 'rain-day',
+      gate: { period: ['morning', 'afternoon', 'evening'], weather: ['rain'] },
+      copy: 'Steady rain across the strait, <em>{tempC}°</em>.' },
+    { id: 'night-clear-moon',
+      gate: { period: ['night'], weather: ['clear'], moon: ['waxing', 'full', 'waning'] },
+      copy: 'The moon, <em>{phase}</em> at <em>{illum} percent</em>, rides high above the mountains.' },
+    { id: 'night-clear-new',
+      gate: { period: ['night'], weather: ['clear'], moon: ['new'] },
+      copy: 'A new moon sits over Vancouver. Tide turning at <em>{tideTime}</em>.' },
+    { id: 'snow',
+      gate: { weather: ['snow'] },
+      copy: 'Snow on the slopes. <em>{tempC}°</em> in the city.' },
+    { id: 'generic',
+      gate: {},
+      copy: '<em>{condition}</em>, <em>{tempC}°</em>. <em>{phase}</em> moon at <em>{illum}%</em>.' }
+  ],
+
+  init(stage) {
+    if (!stage) return;
+
+    // Remove other face DOM if present so DisplayModule.init() and other
+    // faces' previously-cached handles do not interfere. The picker page
+    // builds preview cards that do not contain these nodes; the guard
+    // makes init idempotent in both contexts.
+    ['time', 'date', 'slot', 'moon-disc'].forEach(function (id) {
+      var el = stage.querySelector('#' + id);
+      if (el) el.remove();
+    });
+    ['mech-stage', 'dep-stage', 'ed-stage'].forEach(function (id) {
+      var el = stage.querySelector('#' + id);
+      if (el) el.remove();
+    });
+
+    var root = document.createElement('div');
+    root.id = 'ed-stage';
+    root.innerHTML =
+      '<div id="ed-dropline" style="display:none"></div>' +
+      '<div id="ed-time">' +
+        '<span class="ed-hours">--</span>' +
+        '<span class="ed-colon">:</span>' +
+        '<span class="ed-minutes">--</span>' +
+        '<span class="ed-ampm" hidden></span>' +
+      '</div>' +
+      '<div id="ed-right">' +
+        '<div class="ed-kicker"></div>' +
+        '<div class="ed-weekday"></div>' +
+        '<div class="ed-monthday"></div>' +
+      '</div>' +
+      '<div id="ed-paragraph"><div id="ed-paragraph-inner"></div></div>' +
+      '<div id="ed-footer">' +
+        '<div class="ed-foot-cell"><div class="ed-foot-label">Tide</div><div class="ed-foot-value"></div></div>' +
+        '<div class="ed-foot-cell"><div class="ed-foot-label">Air</div><div class="ed-foot-value"></div></div>' +
+        '<div class="ed-foot-cell"><div class="ed-foot-label">Sun</div><div class="ed-foot-value"></div></div>' +
+        '<div class="ed-foot-cell"><div class="ed-foot-label">Almanac</div><div class="ed-foot-value"></div></div>' +
+      '</div>';
+    stage.appendChild(root);
+
+    this._els = {
+      root: root,
+      dropline: root.querySelector('#ed-dropline'),
+      time: root.querySelector('#ed-time'),
+      hours: root.querySelector('.ed-hours'),
+      colon: root.querySelector('.ed-colon'),
+      minutes: root.querySelector('.ed-minutes'),
+      ampm: root.querySelector('.ed-ampm'),
+      right: root.querySelector('#ed-right'),
+      kicker: root.querySelector('.ed-kicker'),
+      weekday: root.querySelector('.ed-weekday'),
+      monthday: root.querySelector('.ed-monthday'),
+      paragraph: root.querySelector('#ed-paragraph'),
+      paragraphInner: root.querySelector('#ed-paragraph-inner'),
+      footer: root.querySelector('#ed-footer'),
+      footValues: Array.from(root.querySelectorAll('.ed-foot-value'))
+    };
+    this._lastMinuteKey = null;
+    this._lastIsoDate = null;
+    this._lastTemplateId = null;
+    this._lastObservanceName = null;
+    this._lastFooterHashes = ['', '', '', ''];
+    this._lastWindowIdx = -1;
+    if (this._fadeTimerId !== null) { clearTimeout(this._fadeTimerId); this._fadeTimerId = null; }
+  },
+
+  render(state, tweaks) {
+    if (!this._els) return;
+    var et = (tweaks && tweaks.byFace && tweaks.byFace.editorial) || {};
+    var timeFormat = et.timeFormat === '12h' ? '12h' : '24h';
+    this._previewMode = et.previewMode === true;
+
+    this._renderDropline(state);
+    this._renderTime(state, timeFormat);
+    this._renderRight(state);
+    this._renderFooter(state, timeFormat);
+    this._maybeRotateParagraph(state, timeFormat);
+  },
+
+  teardown() {
+    if (this._fadeTimerId !== null) { clearTimeout(this._fadeTimerId); this._fadeTimerId = null; }
+    if (this._els && this._els.root) this._els.root.remove();
+    this._els = null;
+    this._lastMinuteKey = null;
+    this._lastIsoDate = null;
+    this._lastTemplateId = null;
+    this._lastObservanceName = null;
+    this._lastFooterHashes = ['', '', '', ''];
+    this._lastWindowIdx = -1;
+  },
+
+  // ---- Time helpers (shared with other faces' patterns) ----
+
+  _resolve24h(state) {
+    var t = state.time || {};
+    var h = (typeof t.hours === 'number') ? t.hours : 0;
+    if (t.ampm) {
+      if (t.ampm === 'AM') h = (t.hours === 12) ? 0 : t.hours;
+      else h = (t.hours === 12) ? 12 : t.hours + 12;
+    }
+    return [h, (typeof t.minutes === 'number') ? t.minutes : 0];
+  },
+
+  // Render a "HH:MM" or "H:MM AM" pair from an h24 + mm pair.
+  _formatHourMinute(h24, mm, timeFormat) {
+    var hh, ampm;
+    if (timeFormat === '12h') {
+      var h12 = h24 % 12;
+      if (h12 === 0) h12 = 12;
+      hh = String(h12);
+      ampm = h24 < 12 ? 'AM' : 'PM';
+    } else {
+      hh = String(h24).padStart(2, '0');
+      ampm = null;
+    }
+    return { hh: hh, mm: String(mm).padStart(2, '0'), ampm: ampm };
+  },
+
+  // Parse a stored time string ("6:14 AM", "18:14", ISO) to a Date.
+  _parseClockOrIso(raw) {
+    if (!raw) return null;
+    if (raw.indexOf('T') >= 0) {
+      var d = new Date(raw);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    var m = /^\s*(\d{1,2}):(\d{2})(?:\s*(AM|PM))?\s*$/i.exec(raw);
+    if (!m) return null;
+    var hh = parseInt(m[1], 10);
+    var mm = parseInt(m[2], 10);
+    if (m[3]) {
+      var ap = m[3].toUpperCase();
+      if (ap === 'PM' && hh < 12) hh += 12;
+      if (ap === 'AM' && hh === 12) hh = 0;
+    }
+    var now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
+  },
+
+  // Format an arbitrary time string into the requested face timeFormat.
+  // Returns '—' when the input cannot be parsed.
+  _fmtTime(raw, timeFormat) {
+    if (!raw) return '—';
+    var d = this._parseClockOrIso(raw);
+    if (!d) {
+      // Some sources already supply formatted strings ("17:14") that the
+      // parser handles; if it fell through, return raw rather than '—'.
+      return raw;
+    }
+    var pair = this._formatHourMinute(d.getHours(), d.getMinutes(), timeFormat);
+    return pair.ampm ? (pair.hh + ':' + pair.mm + ' ' + pair.ampm) : (pair.hh + ':' + pair.mm);
+  },
+
+  // ---- Per-sub-render helpers ----
+
+  _renderDropline(state) {
+    var obs = state.observance;
+    var key;
+    if (obs && obs.treatment === 'light' && obs.name_long) {
+      key = obs.name + '|' + obs.name_long;
+      if (key === this._lastObservanceName) return;
+      this._lastObservanceName = key;
+      this._els.dropline.textContent = obs.name_long;
+      this._els.dropline.style.display = '';
+    } else {
+      if (this._lastObservanceName === null) return;
+      this._lastObservanceName = null;
+      this._els.dropline.style.display = 'none';
+    }
+  },
+
+  _renderTime(state, timeFormat) {
+    var pair = this._resolve24h(state);
+    var fm = this._formatHourMinute(pair[0], pair[1], timeFormat);
+    var minuteKey = timeFormat + '|' + fm.hh + ':' + fm.mm + '|' + (fm.ampm || '');
+    if (minuteKey === this._lastMinuteKey) return;
+    this._lastMinuteKey = minuteKey;
+
+    var els = this._els;
+    els.hours.textContent = fm.hh;
+    els.minutes.textContent = fm.mm;
+    if (fm.ampm) {
+      els.ampm.textContent = fm.ampm;
+      els.ampm.hidden = false;
+    } else {
+      els.ampm.textContent = '';
+      els.ampm.hidden = true;
+    }
+  },
+
+  _renderRight(state) {
+    // Kicker: recomputed every tick (cheap, changes only at altitude crossings).
+    // Weekday + month-day: gated on isoDate change (once per local midnight).
+    var kicker = this._editorialKicker(state);
+    if (this._els.kicker.textContent !== kicker) {
+      this._els.kicker.textContent = kicker;
+    }
+    var iso = (state.date && state.date.isoDate) || '';
+    if (iso !== this._lastIsoDate) {
+      this._lastIsoDate = iso;
+      var weekday = (state.date && state.date.dayOfWeek) ? state.date.dayOfWeek + ',' : '';
+      var monthday = (state.date && state.date.month && state.date.day)
+        ? state.date.month + ' ' + state.date.day + '.'
+        : '';
+      this._els.weekday.textContent = weekday;
+      this._els.monthday.textContent = monthday;
+    }
+  },
+
+  _editorialKicker(state) {
+    // AppState.time.hours may be 12h-format; resolve to 24h before comparing.
+    var h = this._resolve24h(state)[0];
+    var altitude = (state.sun && typeof state.sun.altitude === 'number') ? state.sun.altitude : 0;
+    if (h < 5 || (h >= 21 && altitude < 0)) return 'TONIGHT';
+    if (h < 12) return 'THIS MORNING';
+    if (h < 17) return 'THIS AFTERNOON';
+    return 'THIS EVENING';
+  },
+
+  _renderFooter(state, timeFormat) {
+    var vals = this._els.footValues;
+    // TIDE
+    var tide = state.tide || {};
+    var tideHtml;
+    var tideHash;
+    if (!tide.type) {
+      tideHtml = '<span class="ed-foot-empty">—</span>';
+      tideHash = 'tide|empty';
+    } else {
+      var t = String(tide.type);
+      var typeLabel = t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+      var hM = (tide.heightM === null || tide.heightM === undefined)
+        ? '—m'
+        : Number(tide.heightM).toFixed(1) + 'm';
+      var tideTime = this._fmtTime(tide.time, timeFormat);
+      tideHtml = typeLabel + ' ' + hM + ', ' + tideTime;
+      tideHash = 'tide|' + typeLabel + '|' + hM + '|' + tideTime;
+    }
+    // AIR
+    var a = state.aqi || {};
+    var airHtml;
+    var airHash;
+    if (a.value === null || a.value === undefined) {
+      airHtml = '<span class="ed-foot-empty">—</span>';
+      airHash = 'air|empty';
+    } else {
+      var band = a.band ? String(a.band).replace(/_/g, ' ') : '';
+      // title-case to match the editorial register ("Good" not "GOOD")
+      var bandTitle = band ? band.charAt(0).toUpperCase() + band.slice(1).toLowerCase() : '';
+      airHtml = 'AQI ' + a.value + (bandTitle ? ', ' + bandTitle : '');
+      airHash = 'air|' + a.value + '|' + bandTitle;
+    }
+    // SUN
+    var s = state.sun || {};
+    var sunHtml;
+    var sunHash;
+    if (!s.sunrise || !s.sunset) {
+      sunHtml = '<span class="ed-foot-empty">—</span>';
+      sunHash = 'sun|empty';
+    } else {
+      var rise = this._fmtTime(s.sunrise, timeFormat);
+      var set = this._fmtTime(s.sunset, timeFormat);
+      sunHtml = '<span class="ed-foot-glyph">↑</span> ' + rise +
+                '  <span class="ed-foot-glyph">↓</span> ' + set;
+      sunHash = 'sun|' + rise + '|' + set;
+    }
+    // ALMANAC
+    var alm = state.almanac;
+    var almHtml;
+    var almHash;
+    if (!alm || !alm.name) {
+      almHtml = '<span class="ed-foot-empty">—</span>';
+      almHash = 'alm|empty';
+    } else {
+      var nameTitle = String(alm.name);
+      // title-case approximate ("Eta Aquariids")
+      nameTitle = nameTitle.toLowerCase().replace(/(^|\s)\w/g, function (c) { return c.toUpperCase(); });
+      var when;
+      if (alm.daysAway === 0) when = 'Tonight';
+      else if (alm.daysAway === 1) when = 'Tomorrow';
+      else when = 'In ' + alm.daysAway + 'd';
+      almHtml = nameTitle + ', ' + when;
+      almHash = 'alm|' + nameTitle + '|' + when;
+    }
+
+    var hashes = [tideHash, airHash, sunHash, almHash];
+    var htmls = [tideHtml, airHtml, sunHtml, almHtml];
+    for (var i = 0; i < 4; i++) {
+      if (hashes[i] !== this._lastFooterHashes[i]) {
+        this._lastFooterHashes[i] = hashes[i];
+        vals[i].innerHTML = htmls[i];
+      }
+    }
+  },
+
+  // ---- Paragraph rotation (32 s window, 1200 ms cross-fade) ----
+
+  _paragraphWindowIdx() {
+    // Live cadence: floor(performance.now() / 32000). Preview mode keeps the
+    // same epoch but compresses the cadence to 6 s (test convenience).
+    if (this._previewMode) {
+      return Math.floor(performance.now() / 6000);
+    }
+    return Math.floor(performance.now() / 32000);
+  },
+
+  _maybeRotateParagraph(state, timeFormat) {
+    var idx = this._paragraphWindowIdx();
+    if (idx === this._lastWindowIdx) return;
+    var firstPaint = (this._lastWindowIdx === -1);
+    this._lastWindowIdx = idx;
+
+    var active = this._activeTemplate(state);
+    var inner = this._els.paragraphInner;
+    var html = this._renderTemplate(active.copy, state, timeFormat);
+
+    // First paint: write immediately, no cross-fade.
+    if (firstPaint || this._lastTemplateId === null) {
+      inner.innerHTML = html;
+      this._lastTemplateId = active.id;
+      return;
+    }
+    // Same template selected again: refresh placeholder values without fade
+    // (a fade with identical-looking text reads as a flicker).
+    if (active.id === this._lastTemplateId) {
+      if (inner.innerHTML !== html) inner.innerHTML = html;
+      return;
+    }
+    // Different template: cross-fade.
+    this._lastTemplateId = active.id;
+    if (this._fadeTimerId !== null) {
+      clearTimeout(this._fadeTimerId);
+      this._fadeTimerId = null;
+    }
+    inner.classList.add('is-fading-out');
+    var self = this;
+    this._fadeTimerId = setTimeout(function () {
+      if (!self._els || self._els.paragraphInner !== inner) return;
+      inner.innerHTML = html;
+      inner.classList.remove('is-fading-out');
+      self._fadeTimerId = null;
+    }, 1200);
+  },
+
+  _period(state) {
+    var pair = this._resolve24h(state);
+    var h = pair[0];
+    var altitude = (state.sun && typeof state.sun.altitude === 'number') ? state.sun.altitude : 0;
+    if (altitude < -6) return 'night';      // astronomical twilight or darker
+    if (altitude < 0) return 'twilight';    // civil twilight band
+    if (h < 12) return 'morning';
+    if (h < 17) return 'afternoon';
+    return 'evening';
+  },
+
+  _weatherState(state) {
+    var c = state.weather && state.weather.condition;
+    if (c === 'CLEAR' || c === 'PARTLY_CLOUDY') return 'clear';
+    if (c === 'FOG') return 'fog';
+    if (c === 'RAIN' || c === 'STORM') return 'rain';
+    if (c === 'SNOW') return 'snow';
+    return 'cloudy';
+  },
+
+  _moonState(state) {
+    var p = (state.moon && state.moon.phaseName) || '';
+    if (p.indexOf('New') >= 0) return 'new';
+    if (p.indexOf('Full') >= 0) return 'full';
+    if (p.indexOf('Waxing') >= 0) return 'waxing';
+    if (p.indexOf('Waning') >= 0) return 'waning';
+    return 'waxing';
+  },
+
+  _matches(template, period, weather, moon) {
+    var g = template.gate || {};
+    if (g.period && g.period.indexOf(period) < 0) return false;
+    if (g.weather && g.weather.indexOf(weather) < 0) return false;
+    if (g.moon && g.moon.indexOf(moon) < 0) return false;
+    return true;
+  },
+
+  // Simple deterministic string hash. djb2-style; 32-bit signed truncation
+  // is acceptable here -- the hash only chooses a candidate index.
+  _hash(str) {
+    var h = 5381;
+    for (var i = 0; i < str.length; i++) {
+      h = ((h << 5) + h) + str.charCodeAt(i);
+      h = h & h;
+    }
+    return Math.abs(h);
+  },
+
+  _activeTemplate(state) {
+    var period = this._period(state);
+    var weather = this._weatherState(state);
+    var moon = this._moonState(state);
+    var templates = this._PARAGRAPH_TEMPLATES;
+    var candidates = [];
+    for (var i = 0; i < templates.length; i++) {
+      if (this._matches(templates[i], period, weather, moon)) candidates.push(templates[i]);
+    }
+    if (candidates.length === 0) return templates[templates.length - 1];
+    var key = period + '|' + weather + '|' + moon;
+    var idx = this._hash(key) % candidates.length;
+    return candidates[idx];
+  },
+
+  _renderTemplate(template, state, timeFormat) {
+    var self = this;
+    return template.replace(/\{(\w+)\}/g, function (_, key) {
+      switch (key) {
+        case 'tempC':
+          return (state.weather && state.weather.tempC !== null && state.weather.tempC !== undefined)
+            ? String(state.weather.tempC) : '—';
+        case 'condition':
+          var c = state.weather && state.weather.condition;
+          if (!c) return 'overcast';
+          // Title-case readable form.
+          return String(c).replace(/_/g, ' ').toLowerCase();
+        case 'sunset':
+          return self._fmtTime(state.sun && state.sun.sunset, timeFormat);
+        case 'sunrise':
+          return self._fmtTime(state.sun && state.sun.sunrise, timeFormat);
+        case 'phase':
+          var p = (state.moon && state.moon.phaseName) || 'waxing';
+          return p.toLowerCase();
+        case 'illum':
+          var ill = (state.moon && typeof state.moon.illumination === 'number') ? state.moon.illumination : 0;
+          return String(Math.round(ill * 100));
+        case 'tideTime':
+          return self._fmtTime(state.tide && state.tide.time, timeFormat);
+        case 'visibility':
+          var v = state.weather && state.weather.visibilityKm;
+          return (v === null || v === undefined) ? '—' : (v + ' km');
+        default:
+          return '';
+      }
+    });
+  }
+};
+
 // Phase 16: face registry. Phase 17 registers `mechanical`; future faces
 // register themselves here and use the same init/render/teardown contract.
-const MECHANICAL_TIME_FORMATS = ['24h', '12h'];
+// Mechanical and Editorial share the same time-format option set.
+const FACE_TIME_FORMATS = ['24h', '12h'];
 
 // Phase 18: Departures opacity tweak clamp range.
 const DEPARTURES_OPACITY_MIN = 0.0;
@@ -3244,8 +3902,8 @@ const ClockfaceRegistry = {
   faces: {
     calm: CalmFace,
     mechanical: MechanicalFace,       // Phase 17
-    departures: DeparturesFace        // Phase 18
-    // editorial:  EditorialFace,     // Phase 19
+    departures: DeparturesFace,       // Phase 18
+    editorial:  EditorialFace         // Phase 19
     // horizon:    HorizonFace        // Phase 20
   },
 
@@ -3271,7 +3929,8 @@ const ClockfaceRegistry = {
         driftIntensity: def.driftIntensity,
         byFace: {
           mechanical: { timeFormat: '24h', previewMode: false },
-          departures: { flapBezelOpacity: DEPARTURES_OPACITY_DEFAULT }
+          departures: { flapBezelOpacity: DEPARTURES_OPACITY_DEFAULT },
+          editorial:  { timeFormat: '24h', previewMode: false }
         }
       };
     }
@@ -3286,7 +3945,7 @@ const ClockfaceRegistry = {
     const mech = (byFace.mechanical && typeof byFace.mechanical === 'object')
       ? byFace.mechanical
       : {};
-    const tf = MECHANICAL_TIME_FORMATS.indexOf(mech.timeFormat) >= 0 ? mech.timeFormat : '24h';
+    const tf = FACE_TIME_FORMATS.indexOf(mech.timeFormat) >= 0 ? mech.timeFormat : '24h';
     const pm = mech.previewMode === true;
     byFace.mechanical = { timeFormat: tf, previewMode: pm };
 
@@ -3298,6 +3957,16 @@ const ClockfaceRegistry = {
     byFace.departures = {
       flapBezelOpacity: _clampDeparturesOpacity(dep.flapBezelOpacity)
     };
+
+    // Phase 19: normalise editorial sub-object. timeFormat falls back to
+    // '24h' for unknown values; previewMode is always coerced to boolean
+    // and is never persisted by the picker on Apply.
+    const ed = (byFace.editorial && typeof byFace.editorial === 'object')
+      ? byFace.editorial
+      : {};
+    const edTf = FACE_TIME_FORMATS.indexOf(ed.timeFormat) >= 0 ? ed.timeFormat : '24h';
+    const edPm = ed.previewMode === true;
+    byFace.editorial = { timeFormat: edTf, previewMode: edPm };
 
     return { accent: accent, driftIntensity: driftIntensity, byFace: byFace };
   },
@@ -3346,6 +4015,7 @@ let TWEAKS = { accent: 'gold', driftIntensity: 'normal', byFace: {} };
 window.CalmFace = CalmFace;
 window.MechanicalFace = MechanicalFace;
 window.DeparturesFace = DeparturesFace;   // Phase 18
+window.EditorialFace = EditorialFace;     // Phase 19
 window.ClockfaceRegistry = ClockfaceRegistry;
 
 (function boot() {

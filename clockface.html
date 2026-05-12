@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300&display=swap">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300&display=swap">
+  <!-- Phase 19: Cormorant Garamond 300 italic for Editorial face preview. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,300&display=swap">
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="data:,">
   <title>Solari -- Clockface</title>
@@ -333,6 +335,13 @@
       <h3>Bezel Opacity</h3>
       <input class="slider" id="dep-bezel-opacity" type="range" min="0" max="0.4" step="0.02" value="0.22">
       <span class="slider-value" id="dep-bezel-opacity-val">0.22</span>
+    </div>
+    <div class="tweaks-row" id="row-ed-format" hidden>
+      <h3>Editorial Time Format</h3>
+      <div class="seg" id="seg-ed-format">
+        <button class="seg-btn" data-val="24h">24h</button>
+        <button class="seg-btn" data-val="12h">12h</button>
+      </div>
     </div>
   </div>
   <div class="toast" id="toast">CALM APPLIED</div>
