@@ -27,7 +27,7 @@ Live: [joshuascottpaul.github.io/solari](https://joshuascottpaul.github.io/solar
 
 ## Faces
 
-Long-press the time numerals or moon disc for 600 ms to open the picker, or navigate directly to `/clockface.html`. Each face is a distinct voice on the same underlying engine.
+Five faces ship with V1. Each is a distinct visual voice on the same underlying data engine.
 
 ### Calm
 
@@ -49,7 +49,7 @@ The Solari namesake. Split-flap board with gold-bezel hour-minute flap pair, fiv
 
 ### Editorial
 
-Magazine-cover composition. Cormorant Garamond 300 italic time at 360 px on the left, mirrored right-column kicker + weekday + monthday block, rotating literary almanac paragraph that cross-fades every 32 seconds. Layout flips every 6 hours.
+Magazine-cover composition. Large italic time on the left, mirrored right-column kicker and date block, rotating literary almanac paragraph that cross-fades every 32 seconds. Layout flips every 6 hours. Note: the Editorial picker card shows a placeholder in the current release; apply it via the URL method or `localStorage` instead (see below).
 
 ![Editorial face](screenshots/faces/editorial.png)
 
@@ -59,13 +59,51 @@ Astronomy as truth. Full-stage SVG diagram with sun and moon arcs, 25 hour ticks
 
 ![Horizon face](screenshots/faces/horizon.png)
 
+## Changing faces
+
+### Open the picker
+
+Three ways to reach the picker:
+
+| Method | How |
+|---|---|
+| Long-press (iPad) | Hold the time numerals or moon disc for 600 ms |
+| Direct URL | Navigate to `https://joshuascottpaul.github.io/solari/clockface.html` |
+| localStorage (advanced) | Open DevTools console and run `localStorage.setItem('solari.clockface', 'mechanical')` then reload |
+
+A short single tap on the moon disc or time numerals opens the version overlay instead. Hold longer (600 ms) for the picker.
+
+Valid face IDs for the localStorage method: `calm`, `mechanical`, `departures`, `editorial`, `horizon`.
+
+### Using the picker
+
+Scroll vertically through the five face cards. The toolbar at the bottom shows the face name and a counter.
+
+Tap the Tweaks button (bottom-right) to open the tweaks panel:
+
+| Tweak | Options |
+|---|---|
+| Accent color | gold, sky, sage, paper |
+| Drift intensity | off, subtle, normal, restless |
+| Mechanical: time format | 12h, 24h |
+| Horizon: time format | 12h, 24h |
+| Departures: bezel opacity | slider, 0.0 to 0.4 |
+
+Tap Apply (gold button) to save. The main display reloads automatically within 2.4 seconds and a toast confirms the change.
+
+On desktop you can navigate with ArrowUp / ArrowDown, j / k, or PageUp / PageDown. Escape closes the tweaks panel.
+
+### First-run defaults
+
+On first visit, localStorage is empty. The display defaults to Calm with gold accent and normal drift intensity.
+
 ## Technology
 
 Vanilla HTML, CSS, and JavaScript. No framework, no build step, no API keys. Total size: approximately 256 KB uncompressed (V1 complete, all 5 faces shipped). Deployed as static files via GitHub Pages.
 
 Vendored libraries in `lib/` (both MIT-licensed): SunCalc for astronomical calculations, Perlin for noise generation.
 
-External data comes from free public APIs: Open-Meteo (weather, AQI), DFO IWLS (tides), Environment Canada (weather alerts).
+External data comes from free public APIs: Open-Meteo (weather, AQI), DFO IWLS (tides), Environment Canada (weather alerts). The live DFO tides feed currently returns errors; tides are served from a static fallback at `data/tides.json`, refreshed weekly by a GitHub Actions workflow.
 
 ## Run locally
 
@@ -99,6 +137,23 @@ Push to `main`. GitHub Pages serves the files directly -- no build step required
 ### Monthly maintenance
 
 Power-cycle the iPad for 30 minutes once a month to allow full thermal rest.
+
+## Getting updates
+
+A single tap on the moon disc (Calm) or the time numerals (Mechanical) shows the version overlay: build hash and deploy date.
+
+When a new version is live on GitHub Pages, the overlay shows "UPDATE AVAILABLE · TAP TO RELOAD". Tap it to force-fetch fresh files. This is the recommended way to update a running iPad install.
+
+### Service worker caching
+
+On first visit, all assets are cached for offline use. Subsequent visits may be served from the cache until the version overlay detects a new commit. If you need to force a fresh load during development:
+
+- Safari: Develop menu, Empty Caches, then reload
+- Chrome: DevTools, right-click the reload button, Empty Cache and Hard Reload
+
+## Sleep and wake
+
+The clock self-corrects after the iPad wakes from sleep. The rotator resumes where it left off. All burn-in protection layers (drift, macro shifts, luminance breath) resume automatically. No manual intervention is needed.
 
 ## Configuration
 
