@@ -18,7 +18,7 @@ All 5 clockfaces shipped. Phases 16-20 complete as of 2026-05-12.
 
 ## Phase 18 follow-ups
 
-- [ ] **`detailAccentWord` dead code** -- `DepartureRow.detailAccentWord` is set in the row-builder but never read by `_renderRow`. No use case emerged during Phase 19. Cleanup candidate; remove the field and its assignments in a housekeeping pass before Phase 20 ships.
+- [ ] **`detailAccentWord` dead code** -- `DepartureRow.detailAccentWord` is set in the row-builder but never read by `_renderRow`. No use case emerged during Phases 19 or 20. Cleanup candidate; remove the field and its assignments in a V2 housekeeping pass.
 - [ ] **`#dep-board-header` brightness filter exemption** -- `filter: brightness(var(--lum-mod))` applies to the board including the column header. Phase 19 did not add overlapping tall elements. Revisit if Phase 20 (Horizon arc) overlaps the header zone.
 
 ## Phase 19 follow-ups
@@ -45,13 +45,13 @@ Remaining from Phase 16 verification:
 ## Tech debt / doc cleanups
 
 - [x] **Paper accent hex correction** -- `ACCENT_PALETTE.paper.hex` was `#F0EBDC` in the Phase 16 spec (would render identical to `--type-primary` and make the accent invisible). Corrected to `#E8E0D0` in `docs/phase-16-clockface-foundation.md` 2026-05-12. Shipped code (`app.js:126`, `clockface.js:32`) was already correct; spec only needed fixing.
-- [ ] **Bundle accounting refresh** -- Phase 17 audit: ~145-149 KB cold-cache (JetBrains Mono 300 included). Phase 19 added Cormorant Garamond 300 italic (Google Fonts CDN, not self-hosted). ripley to re-audit headroom before Phase 20 lands.
-- [ ] **ACCENT_PALETTE three-way sync** -- `ACCENT_PALETTE` in `app.js` is referenced in at least two places (main display and picker preview path); `clockface.js` now carries an explicit dual-source comment (Phase 19 pattern). Consider extraction to a shared constant or config entry before Phase 20. Low priority.
+- [ ] **Bundle accounting refresh** -- V1 shipped at 255,607 bytes uncompressed (all 5 faces). Cormorant Garamond font link was rolled back so the CDN load is absent for now. V2 planning: re-audit headroom before adding new webfonts or faces.
+- [ ] **ACCENT_PALETTE three-way sync** -- `ACCENT_PALETTE` in `app.js` is referenced in at least two places (main display and picker preview path); `clockface.js` carries an explicit dual-source comment. Consider extraction to a shared constant or config entry in a V2 housekeeping pass. Low priority.
 - [ ] **`data.js` placeholder** -- still in repo, still not loaded (CLAUDE.md line 18). Either delete or document intent. Low priority -> misaka, defer until next housekeeping pass.
 - [ ] **Picker accent doesn't render on Calm preview colon** -- `clockface.js:108` emits plain `<span>:</span>` without `.colon` class, so picker previews of Calm don't show colon-accent feedback. Folds in with the Phase 17 Calm-card-conversion follow-up above.
 
 ## Reserved / future
 
 - [x] **Departures bezel burn-in ruling** -- resolved in Phase 18 spec: transparent center, 1 px gold-22% border only (filled `#16140f` rectangles rejected by chihiro). No solid blocks; layer 8 satisfied.
-- [ ] **Per-face accent surfaces** -- Calm uses colon; Mechanical adds minute-arc; Departures adds imminent-row tint and flap-pair headline; Editorial adds colon only (no per-face accent addition); Horizon TBD. As faces accumulate, consider a per-face `accentTargets` declaration in CONFIG to make the surface explicit. Revisit before Phase 20.
+- [ ] **Per-face accent surfaces** -- Calm uses colon; Mechanical adds minute-arc; Departures adds imminent-row tint and flap-pair headline; Editorial adds colon only; Horizon uses gold hairline and colon (accentSkyTrack=false keeps them fixed). Consider a per-face `accentTargets` declaration in CONFIG to make surfaces explicit. V2 housekeeping candidate.
 - [ ] **Hot-swap face change (avoid full reload on Apply)** -- Phase 16 chose `location.reload()` on storage event. `teardown()` shape exists on the face contract but is never called. If face changes become more frequent (e.g. scheduled time-of-day switching), revisit -> low priority.
