@@ -547,3 +547,185 @@ html, body {
   filter: brightness(var(--lum-mod, 1));
   white-space: nowrap;
 }
+
+/* ---------------------------------------------------------------- */
+/* Phase 19: Editorial face                                          */
+/* ---------------------------------------------------------------- */
+
+#ed-stage {
+  position: absolute; inset: 0;
+}
+
+/* Display type: Cormorant Garamond 300 italic. Georgia and Times New Roman
+   form the fallback chain while the webfont resolves (display=swap). */
+#ed-time,
+#ed-time .ed-hours,
+#ed-time .ed-colon,
+#ed-time .ed-minutes,
+#ed-right .ed-weekday,
+#ed-right .ed-monthday,
+#ed-paragraph,
+.ed-foot-value,
+#ed-dropline {
+  font-family: 'Cormorant Garamond', 'Georgia', 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 300;
+}
+
+/* System chrome: Manrope 200 normal. Kicker, footer labels, and AM/PM
+   suffix stay in the project's existing sans convention. The AM/PM
+   suffix is deliberately not italic (chihiro's lock for display vs format). */
+#ed-right .ed-kicker,
+.ed-foot-label,
+.ed-ampm {
+  font-family: 'Manrope', system-ui, sans-serif;
+  font-style: normal;
+  font-weight: 200;
+}
+
+/* Time numerals. Top-left anchored; MacroShifter writes left/top in stage
+   pixels (Home A: 100,200 / Home B: 560,200). Drift via --time-dx/-dy. */
+#ed-time {
+  position: absolute;
+  left: 100px;
+  top: 200px;
+  font-size: 360px;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  color: var(--type-primary);
+  white-space: nowrap;
+  filter: brightness(var(--lum-mod));
+  transform: translate(var(--time-dx, 0px), var(--time-dy, 0px));
+  transition: left 60s ease-in-out, top 60s ease-in-out;
+}
+
+#ed-time .ed-colon {
+  color: var(--type-accent);
+  opacity: 0.88;
+}
+
+#ed-time .ed-ampm {
+  font-size: 56px;
+  letter-spacing: 0.18em;
+  color: var(--type-secondary);
+  vertical-align: top;
+  margin-left: 24px;
+  text-transform: uppercase;
+}
+
+#ed-time .ed-ampm[hidden] { display: none; }
+
+/* Right-column block: kicker + weekday + month-day. Top-left anchored;
+   MacroShifter writes left/top in stage pixels (Home A: 850,220 /
+   Home B: 290,220), mirrored with #ed-time. Drift via --date-dx/-dy. */
+#ed-right {
+  position: absolute;
+  left: 850px;
+  top: 220px;
+  width: 320px;
+  filter: brightness(var(--lum-mod));
+  transform: translate(var(--date-dx, 0px), var(--date-dy, 0px));
+  transition: left 60s ease-in-out, top 60s ease-in-out;
+}
+
+.ed-kicker {
+  font-size: 14px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--type-tertiary);
+  margin-bottom: 14px;
+}
+
+.ed-weekday {
+  font-size: 64px;
+  line-height: 1.0;
+  color: var(--type-primary);
+  margin-bottom: 14px;
+}
+
+.ed-monthday {
+  font-size: 52px;
+  line-height: 1.0;
+  color: var(--type-secondary);
+}
+
+/* Paragraph. Anchored at x=560 y=480; drift via --slot-dx/-dy.
+   Inner wrapper carries the 1200 ms cross-fade. */
+#ed-paragraph {
+  position: absolute;
+  left: 560px;
+  top: 480px;
+  width: 540px;
+  filter: brightness(var(--lum-mod));
+  transform: translate(var(--slot-dx, 0px), var(--slot-dy, 0px));
+}
+
+#ed-paragraph-inner {
+  font-size: 26px;
+  line-height: 1.35;
+  color: var(--type-secondary);
+  transition: opacity 1200ms ease-in-out;
+}
+
+#ed-paragraph-inner.is-fading-out {
+  opacity: 0;
+}
+
+#ed-paragraph em {
+  font-style: italic;        /* defeats user-agent default */
+  color: var(--type-primary);
+}
+
+/* Observance dropline (light treatments only). 28 px italic above time. */
+#ed-dropline {
+  position: absolute;
+  left: 100px;
+  top: 170px;
+  font-size: 28px;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: var(--type-secondary);
+  white-space: nowrap;
+  filter: brightness(var(--lum-mod));
+}
+
+/* Footer. 4-column grid; 1 px top rule + vertical separators.
+   Anchored bottom-left at y=690; drift via --tickRail-dx/-dy. */
+#ed-footer {
+  position: absolute;
+  left: 100px;
+  top: 690px;
+  width: 980px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--rule);
+  padding-top: 22px;
+  filter: brightness(var(--lum-mod));
+  transform: translate(var(--tickRail-dx, 0px), var(--tickRail-dy, 0px));
+}
+
+.ed-foot-cell {
+  padding: 0 18px;
+  border-right: 1px solid var(--rule);
+  min-height: 60px;
+}
+
+.ed-foot-cell:last-child { border-right: none; }
+
+.ed-foot-label {
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--type-tertiary);
+  margin-bottom: 6px;
+}
+
+.ed-foot-value {
+  font-size: 22px;
+  color: var(--type-primary);
+}
+
+.ed-foot-empty { color: var(--type-tertiary); }
+
+/* Sun arrow glyphs at 55% alpha accent (mirrors Phase 17 SUN cell). */
+.ed-foot-glyph { color: var(--type-accent); opacity: 0.55; }

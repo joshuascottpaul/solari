@@ -3,10 +3,12 @@
 | Field    | Value                              |
 |----------|------------------------------------|
 | Phase    | 19 of 20 (V1, fourth face)         |
-| Status   | Draft                              |
+| Status   | Shipped                            |
+| Shipped  | 2026-05-12                         |
 | Date     | 2026-05-12                         |
 | Author   | ariadne                            |
-| Depends  | Phase 16 (shipped 2026-05-07), Phase 17 (shipped 2026-05-11), Phase 18 (Departures) |
+| Impl     | misaka                             |
+| Depends  | Phase 16 (shipped 2026-05-07), Phase 17 (shipped 2026-05-11), Phase 18 (shipped 2026-05-12) |
 | Unblocks | Phase 20 (Horizon)                 |
 
 ## 1. Goal
@@ -1051,7 +1053,16 @@ Editorial must survive a 7-day endurance run with no memory growth and no DriftE
 3. Dropline state across multiple light-observance days: confirm `_lastObservanceName` resets correctly when the observance changes from one day to the next, or from a light observance to no observance.
 4. Cross-fade interrupted by 03:00 refresher: the refresher overlay covers the stage; if a cross-fade is mid-flight at 03:00:00, the `setTimeout(.., 1200)` still fires under the overlay and the new content is in place when the overlay clears at 03:00:30.
 
-## 22. Open Questions
+## 22. Shipped Status
+
+Resolved items from hermione review and implementation. All were closed before merge.
+
+- **First-frame anchor seeding** -- SHIPPED. `DriftEngine.start()` seeds `_anchorPercents.time` from the per-face home A pixel coordinates when Editorial is active, so the time element does not jump on the first macro shift.
+- **Dual-source CONFIG sync** -- SHIPPED. `clockface.js` reads `ACCENT_PALETTE` via an explicit dual-source comment, matching the pattern established in Phase 17 for `DRIFT_INTENSITY_MULT`.
+- **Cross-fade race guard** -- SHIPPED. `EditorialFace._maybeRotateParagraph` clears `_fadeTimerId` before scheduling a new swap, preventing double-fire if two swaps queue (e.g. preview-mode acceleration glitch).
+- **117/143s coprime periods** -- SHIPPED as a carry-forward from Phase 7. The Editorial `time` channel retains the pre-existing 117 s period; a design comment in `CONFIG.driftClasses` documents the coprime intent for the full channel set.
+
+## 23. Open Questions
 
 Items remaining after the chihiro decision pass. None block implementation; all have defaulted resolutions noted below.
 
@@ -1065,7 +1076,7 @@ Items remaining after the chihiro decision pass. None block implementation; all 
 
 5. **Vertical line break in long paragraphs.** Templates that produce long sentences may wrap to 3 lines at 540 px / 26 px / 1.35 line-height. The paragraph container is sized for 3 lines (~108 px tall) but does not currently enforce a max-height. **Resolution: rely on authoring discipline (Section 12 rule 7: 2-3 sentences max). If a template overflows in production, the container clips silently rather than pushing into the footer; this is the safest failure mode.**
 
-## 23. References
+## 24. References
 
 - SDD Section 9 (Burn-in Protection, eight layers).
 - SDD Section 11.1 (Kinetic transition timing; the paragraph cross-fade is the SDD-compliant Layer 3 substitution for Editorial).

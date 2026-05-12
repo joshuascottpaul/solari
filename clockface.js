@@ -45,12 +45,24 @@
     byFace: {}
   };
 
-  const MECHANICAL_TIME_FORMATS = ['24h', '12h'];
+  // Mechanical and Editorial share the same time-format option set.
+  const FACE_TIME_FORMATS = ['24h', '12h'];
 
   // Phase 18: Departures opacity tweak clamp. Mirrors app.js's normaliser.
   const DEPARTURES_OPACITY_MIN = 0.0;
   const DEPARTURES_OPACITY_MAX = 0.4;
   const DEPARTURES_OPACITY_DEFAULT = 0.22;
+
+  // Phase 19: per-face macro shift tables for the picker preview.
+  // DUAL-SOURCE: these values mirror app.js's
+  //   CONFIG.macroShift.timeHomesByFace.editorial
+  //   CONFIG.macroShift.rightBlockHomesByFace.editorial
+  // Both copies must stay in sync; the picker cannot read CONFIG because the
+  // boot guard skips app.js initialization on clockface.html. Same pattern as
+  // ACCENT_PALETTE. previewMode compresses 6 h -> 6 s so reviewers see the
+  // composition swap inside a normal preview session.
+  const EDITORIAL_TIME_HOMES = [[100, 200], [560, 200]];
+  const EDITORIAL_RIGHT_HOMES = [[850, 220], [290, 220]];
   function clampDeparturesOpacity(v) {
     if (typeof v !== 'number' || !isFinite(v)) return DEPARTURES_OPACITY_DEFAULT;
     if (v < DEPARTURES_OPACITY_MIN) return DEPARTURES_OPACITY_MIN;
@@ -62,7 +74,7 @@
     { id: 'calm',       name: 'Calm',       blurb: 'type weight 200, slow drift, single slot',     phase: 16, real: true,  liveRender: false },
     { id: 'mechanical', name: 'Mechanical', blurb: 'monospace grid, minute-arc, JetBrains Mono',   phase: 17, real: true,  liveRender: true  },
     { id: 'departures', name: 'Departures', blurb: 'split-flap board, gold imminent rows',         phase: 18, real: true,  liveRender: true  },
-    { id: 'editorial',  name: 'Editorial',  blurb: 'asymmetric two-column, italic time',           phase: 19, real: false, liveRender: false },
+    { id: 'editorial',  name: 'Editorial',  blurb: 'magazine italic, rotating almanac paragraph',  phase: 19, real: true,  liveRender: true  },
     { id: 'horizon',    name: 'Horizon',    blurb: 'sun and moon arcs, hour ticks',                phase: 20, real: false, liveRender: false }
   ];
 
@@ -74,13 +86,17 @@
     date: { dayOfWeek: 'Monday', day: 11, month: 'May', year: 2026, isoDate: '2026-05-11' },
     sun:  { sunrise: '05:22', sunset: '20:47', dayLengthMin: 925, altitude: 12, azimuth: 220 },
     moon: { phase: 0.18, illumination: 0.18, phaseName: 'Waxing Crescent', terminatorAngle: 0, moonrise: '20:14', moonset: '06:38', alwaysUp: false, alwaysDown: false },
-    weather: { tempC: 12, condition: 'PARTLY_CLOUDY', code: 2 },
+    // Phase 19: visibilityKm read by Editorial's fog-day template placeholder.
+    weather: { tempC: 12, condition: 'PARTLY_CLOUDY', code: 2, visibilityKm: 18 },
     aqi:  { value: 24, pm25: 6, band: 'good' },
     tide: { type: 'high', heightM: 4.3, time: '17:14' },
     alert: null,
     alertPreempt: null,
     almanac: { name: 'ETA AQUARIIDS', date: '2026-05-13', daysAway: 2 },
     rotator: { text: '', index: 0 },
+    // Phase 19: observance.name_long drives EditorialFace dropline when
+    // treatment is 'light'. Toggle this to a sample object during preview to
+    // exercise the dropline path. Persisted as null for shipped preview.
     observance: null,
     meta: { bootedAt: Date.now(), lastUpdate: {} }
   };
@@ -99,7 +115,8 @@
         driftIntensity: def.driftIntensity,
         byFace: {
           mechanical: { timeFormat: '24h', previewMode: false },
-          departures: { flapBezelOpacity: DEPARTURES_OPACITY_DEFAULT }
+          departures: { flapBezelOpacity: DEPARTURES_OPACITY_DEFAULT },
+          editorial:  { timeFormat: '24h', previewMode: false }
         }
       };
     }
@@ -115,7 +132,7 @@
     const mech = (byFace.mechanical && typeof byFace.mechanical === 'object')
       ? byFace.mechanical
       : {};
-    const tf = MECHANICAL_TIME_FORMATS.indexOf(mech.timeFormat) >= 0 ? mech.timeFormat : '24h';
+    const tf = FACE_TIME_FORMATS.indexOf(mech.timeFormat) >= 0 ? mech.timeFormat : '24h';
     const pm = mech.previewMode === true;
     byFace.mechanical = { timeFormat: tf, previewMode: pm };
 
@@ -127,6 +144,15 @@
     byFace.departures = {
       flapBezelOpacity: clampDeparturesOpacity(dep.flapBezelOpacity)
     };
+
+    // Phase 19: normalise editorial sub-object. Mirrors app.js. previewMode
+    // is picker-only edge state and is stripped from persisted tweaks on Apply.
+    const ed = (byFace.editorial && typeof byFace.editorial === 'object')
+      ? byFace.editorial
+      : {};
+    const edTf = FACE_TIME_FORMATS.indexOf(ed.timeFormat) >= 0 ? ed.timeFormat : '24h';
+    const edPm = ed.previewMode === true;
+    byFace.editorial = { timeFormat: edTf, previewMode: edPm };
 
     return { accent: accent, driftIntensity: driftIntensity, byFace: byFace };
   }
@@ -153,6 +179,8 @@
   const rowDepBezel = document.getElementById('row-dep-bezel');
   const depBezelSlider = document.getElementById('dep-bezel-opacity');
   const depBezelValEl = document.getElementById('dep-bezel-opacity-val');
+  const segEdFormat = document.getElementById('seg-ed-format');
+  const rowEdFormat = document.getElementById('row-ed-format');
   const btnTweaks = document.getElementById('btn-tweaks');
   const btnApply = document.getElementById('btn-apply');
   const toolbarName = document.getElementById('toolbar-name');
@@ -210,6 +238,18 @@
             departures: (draftTweaks.byFace && draftTweaks.byFace.departures) ||
                         { flapBezelOpacity: DEPARTURES_OPACITY_DEFAULT }
           }
+        });
+      } catch (e) { /* swallow first-paint errors */ }
+    } else if (face.liveRender && face.id === 'editorial' && window.EditorialFace) {
+      // Phase 19: live preview via window.EditorialFace exported by app.js.
+      stage.id = 'stage-' + face.id;
+      window.EditorialFace.init(stage);
+      try {
+        const edDraft = (draftTweaks.byFace && draftTweaks.byFace.editorial) || { timeFormat: '24h' };
+        window.EditorialFace.render(PREVIEW_STATE, {
+          accent: draftTweaks.accent,
+          driftIntensity: draftTweaks.driftIntensity,
+          byFace: { editorial: Object.assign({}, edDraft, { previewMode: true }) }
         });
       } catch (e) { /* swallow first-paint errors */ }
     } else {
@@ -279,6 +319,21 @@
       dep.flapBezelOpacity = clampDeparturesOpacity(parseFloat(depBezelSlider.value));
       draftTweaks.byFace.departures = dep;
       renderTweaksUI();
+    });
+  }
+
+  // Phase 19: Editorial time format segmented control. Only meaningful when
+  // Editorial is the active face; row hidden otherwise. Mirrors the Mechanical
+  // 24h/12h pattern; previewMode is added at render time and never persisted.
+  if (segEdFormat) {
+    segEdFormat.querySelectorAll('.seg-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        draftTweaks.byFace = draftTweaks.byFace || {};
+        const ed = draftTweaks.byFace.editorial || { timeFormat: '24h', previewMode: false };
+        ed.timeFormat = btn.dataset.val;
+        draftTweaks.byFace.editorial = ed;
+        renderTweaksUI();
+      });
     });
   }
 
@@ -384,11 +439,16 @@
       ? draftTweaks.byFace : {};
     const mech = (byFace.mechanical && typeof byFace.mechanical === 'object')
       ? byFace.mechanical : { timeFormat: '24h' };
+    // Phase 19: editorial previewMode compresses 6h paragraph rotation to 6s
+    // and signals the picker to run its accelerated macro-shift.
+    const ed = (byFace.editorial && typeof byFace.editorial === 'object')
+      ? byFace.editorial : { timeFormat: '24h' };
     return {
       accent: draftTweaks.accent,
       driftIntensity: draftTweaks.driftIntensity,
       byFace: Object.assign({}, byFace, {
-        mechanical: Object.assign({}, mech, { previewMode: true })
+        mechanical: Object.assign({}, mech, { previewMode: true }),
+        editorial:  Object.assign({}, ed,   { previewMode: true })
       })
     };
   }
@@ -414,6 +474,13 @@
         } else if (face.id === 'departures' && window.DeparturesFace) {
           try { window.DeparturesFace.render(PREVIEW_STATE, tweaks); }
           catch (e) { /* swallow render errors so the loop keeps ticking */ }
+        } else if (face.id === 'editorial' && window.EditorialFace) {
+          try { window.EditorialFace.render(PREVIEW_STATE, tweaks); }
+          catch (e) { /* swallow render errors so the loop keeps ticking */ }
+          // Phase 19: accelerated macro shift on the Editorial card. Drives
+          // the time + right-block paired flip on a 6 s cadence so reviewers
+          // see the composition swap within a normal preview session.
+          editorialPreviewMacroShift(stage);
         }
       });
     }, 1000);
@@ -421,6 +488,34 @@
       if (previewClockId !== null) clearInterval(previewClockId);
       previewClockId = null;
     });
+  }
+
+  // -------- Phase 19: Editorial preview macro-shift --------
+
+  // Accelerated 6 h -> 6 s macro shift cadence for the Editorial card. Reads
+  // EDITORIAL_TIME_HOMES / EDITORIAL_RIGHT_HOMES and writes left/top on
+  // #ed-time and #ed-right inside the supplied stage. The 1s transition is
+  // proportional to the 60 s production transition. Idempotent per-second
+  // (skips when the index has not changed).
+  let lastEdMacroIdx = -1;
+  function editorialPreviewMacroShift(stage) {
+    if (!stage) return;
+    const idx = Math.floor(performance.now() / 6000) % EDITORIAL_TIME_HOMES.length;
+    if (idx === lastEdMacroIdx) return;
+    lastEdMacroIdx = idx;
+    const timeEl = stage.querySelector('#ed-time');
+    const rightEl = stage.querySelector('#ed-right');
+    const trans = 'left 1s ease-in-out, top 1s ease-in-out';
+    if (timeEl) {
+      timeEl.style.transition = trans;
+      timeEl.style.left = EDITORIAL_TIME_HOMES[idx][0] + 'px';
+      timeEl.style.top  = EDITORIAL_TIME_HOMES[idx][1] + 'px';
+    }
+    if (rightEl) {
+      rightEl.style.transition = trans;
+      rightEl.style.left = EDITORIAL_RIGHT_HOMES[idx][0] + 'px';
+      rightEl.style.top  = EDITORIAL_RIGHT_HOMES[idx][1] + 'px';
+    }
   }
 
   // -------- Tweak application + UI sync --------
@@ -456,6 +551,13 @@
     segMechFormat.querySelectorAll('.seg-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.val === mechTf);
     });
+    // Phase 19: editorial time format segmented
+    const edTf = (draftTweaks.byFace && draftTweaks.byFace.editorial && draftTweaks.byFace.editorial.timeFormat) || '24h';
+    if (segEdFormat) {
+      segEdFormat.querySelectorAll('.seg-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.val === edTf);
+      });
+    }
     // Phase 18: departures bezel-opacity slider value sync
     const depOp = (draftTweaks.byFace && draftTweaks.byFace.departures && typeof draftTweaks.byFace.departures.flapBezelOpacity === 'number')
       ? draftTweaks.byFace.departures.flapBezelOpacity
@@ -491,6 +593,8 @@
     if (rowMechFormat) rowMechFormat.hidden = (face.id !== 'mechanical');
     // Phase 18: show departures bezel-opacity slider only when Departures is active.
     if (rowDepBezel) rowDepBezel.hidden = (face.id !== 'departures');
+    // Phase 19: show editorial time format segmented only when Editorial is active.
+    if (rowEdFormat) rowEdFormat.hidden = (face.id !== 'editorial');
 
     if (scroll) {
       sectionEls[i].scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -502,11 +606,14 @@
   function apply() {
     const face = FACES[activeIndex];
     if (!face.real) return;
-    // Phase 17: previewMode is picker-only edge state; strip it before persist
-    // so the main display never sees previewMode=true.
+    // Phase 17/19: previewMode is picker-only edge state; strip it before
+    // persist so the main display never sees previewMode=true.
     const persistable = JSON.parse(JSON.stringify(draftTweaks));
     if (persistable.byFace && persistable.byFace.mechanical) {
       delete persistable.byFace.mechanical.previewMode;
+    }
+    if (persistable.byFace && persistable.byFace.editorial) {
+      delete persistable.byFace.editorial.previewMode;
     }
     try {
       localStorage.setItem('solari.clockface', face.id);
