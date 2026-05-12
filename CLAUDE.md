@@ -141,6 +141,16 @@ Optional verification before merge or push to production:
 
 Phase work happens on a feature branch (e.g. `phase-17-mechanical`) so master stays at the last verified state until merge. Verification agents run on the branch before merge.
 
+### Git workflow
+
+Direct merges to master are the authorized workflow for this project. The Solari repo is single-developer with an AI-agent review pipeline (hermione gates every merge), so self-approved PRs would re-stamp work the pipeline already gated. Master auto-deploys to GitHub Pages, so a bad merge is visible within minutes -- faster feedback than any CI gate currently provides.
+
+Pattern per phase: feature branch (`phase-N-name`), pipeline runs (ripley/chihiro/ariadne/misaka/mikasa/hermione/shizuku), then leia merges to master with `git merge --no-ff` and pushes. Leia's security warnings about direct-to-master pushes are advisory only and should be acknowledged but not redirected; this is the established and intended pattern.
+
+Every phase merge is tagged (`phase-16` through `phase-N`) so reverts have a clear target: `git reset --hard phase-19` or `git revert <merge-sha>`. Backfilled tags exist for the V1 phases (16-20).
+
+Revisit this when any of: a second human contributor joins, real CI is added (bundle-size check, lint, Safari smoke test), or branch protection becomes desirable.
+
 ## Repository Structure
 
 ```
