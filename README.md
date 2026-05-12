@@ -25,6 +25,40 @@ Live: [joshuascottpaul.github.io/solari](https://joshuascottpaul.github.io/solar
 - 8-layer burn-in protection: Perlin drift, pixel-shift, kinetic churn, macro position shifts, sky-color modulation, luminance breath, daily 03:00 refresher cycle, and rendering hygiene
 - Perlin-noise drift with coprime periods keeps every element in slow, independent motion
 
+## Faces
+
+Long-press the time numerals or moon disc for 600 ms to open the picker, or navigate directly to `/clockface.html`. Each face is a distinct voice on the same underlying engine.
+
+### Calm
+
+The default. Manrope 200 time at 165 px, single rotating slot, moon disc bottom-right. Quiet, centered, minimal.
+
+![Calm face](screenshots/faces/calm.png)
+
+### Mechanical
+
+JetBrains Mono 300 tabular numerals at 236 px with gold colon, five-column complications grid (MOON / SUN / TEMP / AIR / TIDE) at the bottom, minute-arc hairline at the top.
+
+![Mechanical face](screenshots/faces/mechanical.png)
+
+### Departures
+
+The Solari namesake. Split-flap board with gold-bezel hour-minute flap pair, five rotating event rows (sun/tide/moon/almanac), per-character cascade animation on row updates, header strip and footer chrome.
+
+![Departures face](screenshots/faces/departures.png)
+
+### Editorial
+
+Magazine-cover composition. Cormorant Garamond 300 italic time at 360 px on the left, mirrored right-column kicker + weekday + monthday block, rotating literary almanac paragraph that cross-fades every 32 seconds. Layout flips every 6 hours.
+
+![Editorial face](screenshots/faces/editorial.png)
+
+### Horizon
+
+Astronomy as truth. Full-stage SVG diagram with sun and moon arcs, 25 hour ticks, phase-correct moon crescent, dipping behind the horizon line at rise and set. Gold hairline cursor sweeps left-to-right over 24 hours. Big time in the bottom corner, status block right.
+
+![Horizon face](screenshots/faces/horizon.png)
+
 ## Technology
 
 Vanilla HTML, CSS, and JavaScript. No framework, no build step, no API keys. Total size: approximately 256 KB uncompressed (V1 complete, all 5 faces shipped). Deployed as static files via GitHub Pages.
