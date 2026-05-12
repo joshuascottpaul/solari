@@ -10,13 +10,20 @@
 (function () {
   // Mirrors of the main app's CONFIG.driftClasses entries. Kept in sync
   // by hand; the picker is a separate page. tickRail mirrors the entry
-  // Phase 17 activates on the runtime side.
+  // Phase 17 activates on the runtime side. Phase 18 adds five
+  // departureRow* sub-channels (period 61 s, ampX 6, ampY 4) that share
+  // the 'departureRow' class config with independent phase offsets.
   const DRIFT_CLASSES = {
-    time:     { ampX: 24, ampY: 18, periodSec: 117, phaseX: 0,    phaseY: 100  },
-    date:     { ampX: 12, ampY: 8,  periodSec: 89,  phaseX: 200,  phaseY: 300  },
-    slot:     { ampX: 12, ampY: 8,  periodSec: 143, phaseX: 400,  phaseY: 500  },
-    moon:     { ampX: 18, ampY: 12, periodSec: 73,  phaseX: 800,  phaseY: 900  },
-    tickRail: { ampX: 4,  ampY: 3,  periodSec: 79,  phaseX: 1000, phaseY: 1100 }
+    time:          { ampX: 24, ampY: 18, periodSec: 117, phaseX: 0,    phaseY: 100  },
+    date:          { ampX: 12, ampY: 8,  periodSec: 89,  phaseX: 200,  phaseY: 300  },
+    slot:          { ampX: 12, ampY: 8,  periodSec: 143, phaseX: 400,  phaseY: 500  },
+    moon:          { ampX: 18, ampY: 12, periodSec: 73,  phaseX: 800,  phaseY: 900  },
+    tickRail:      { ampX: 4,  ampY: 3,  periodSec: 79,  phaseX: 1000, phaseY: 1100 },
+    departureRow0: { ampX: 6,  ampY: 4,  periodSec: 61,  phaseX: 1200, phaseY: 1300 },
+    departureRow1: { ampX: 6,  ampY: 4,  periodSec: 61,  phaseX: 1400, phaseY: 1500 },
+    departureRow2: { ampX: 6,  ampY: 4,  periodSec: 61,  phaseX: 1600, phaseY: 1700 },
+    departureRow3: { ampX: 6,  ampY: 4,  periodSec: 61,  phaseX: 1800, phaseY: 1900 },
+    departureRow4: { ampX: 6,  ampY: 4,  periodSec: 61,  phaseX: 2000, phaseY: 2100 }
   };
 
   const DRIFT_INTENSITY_MULT = {
@@ -40,10 +47,21 @@
 
   const MECHANICAL_TIME_FORMATS = ['24h', '12h'];
 
+  // Phase 18: Departures opacity tweak clamp. Mirrors app.js's normaliser.
+  const DEPARTURES_OPACITY_MIN = 0.0;
+  const DEPARTURES_OPACITY_MAX = 0.4;
+  const DEPARTURES_OPACITY_DEFAULT = 0.22;
+  function clampDeparturesOpacity(v) {
+    if (typeof v !== 'number' || !isFinite(v)) return DEPARTURES_OPACITY_DEFAULT;
+    if (v < DEPARTURES_OPACITY_MIN) return DEPARTURES_OPACITY_MIN;
+    if (v > DEPARTURES_OPACITY_MAX) return DEPARTURES_OPACITY_MAX;
+    return v;
+  }
+
   const FACES = [
     { id: 'calm',       name: 'Calm',       blurb: 'type weight 200, slow drift, single slot',     phase: 16, real: true,  liveRender: false },
     { id: 'mechanical', name: 'Mechanical', blurb: 'monospace grid, minute-arc, JetBrains Mono',   phase: 17, real: true,  liveRender: true  },
-    { id: 'departures', name: 'Departures', blurb: 'split-flap board, gold imminent rows',         phase: 18, real: false, liveRender: false },
+    { id: 'departures', name: 'Departures', blurb: 'split-flap board, gold imminent rows',         phase: 18, real: true,  liveRender: true  },
     { id: 'editorial',  name: 'Editorial',  blurb: 'asymmetric two-column, italic time',           phase: 19, real: false, liveRender: false },
     { id: 'horizon',    name: 'Horizon',    blurb: 'sun and moon arcs, hour ticks',                phase: 20, real: false, liveRender: false }
   ];
@@ -55,13 +73,13 @@
     time: { hours: 14, minutes: 32, seconds: 0, ampm: null },
     date: { dayOfWeek: 'Monday', day: 11, month: 'May', year: 2026, isoDate: '2026-05-11' },
     sun:  { sunrise: '05:22', sunset: '20:47', dayLengthMin: 925, altitude: 12, azimuth: 220 },
-    moon: { phase: 0.18, illumination: 0.18, phaseName: 'Waxing Crescent', terminatorAngle: 0 },
+    moon: { phase: 0.18, illumination: 0.18, phaseName: 'Waxing Crescent', terminatorAngle: 0, moonrise: '20:14', moonset: '06:38', alwaysUp: false, alwaysDown: false },
     weather: { tempC: 12, condition: 'PARTLY_CLOUDY', code: 2 },
     aqi:  { value: 24, pm25: 6, band: 'good' },
-    tide: { type: 'high', heightM: 4.3, time: '04:22' },
+    tide: { type: 'high', heightM: 4.3, time: '17:14' },
     alert: null,
     alertPreempt: null,
-    almanac: null,
+    almanac: { name: 'ETA AQUARIIDS', date: '2026-05-13', daysAway: 2 },
     rotator: { text: '', index: 0 },
     observance: null,
     meta: { bootedAt: Date.now(), lastUpdate: {} }
@@ -79,7 +97,10 @@
       return {
         accent: def.accent,
         driftIntensity: def.driftIntensity,
-        byFace: { mechanical: { timeFormat: '24h', previewMode: false } }
+        byFace: {
+          mechanical: { timeFormat: '24h', previewMode: false },
+          departures: { flapBezelOpacity: DEPARTURES_OPACITY_DEFAULT }
+        }
       };
     }
     const accent = ACCENT_PALETTE[parsed.accent] ? parsed.accent : def.accent;
@@ -97,6 +118,15 @@
     const tf = MECHANICAL_TIME_FORMATS.indexOf(mech.timeFormat) >= 0 ? mech.timeFormat : '24h';
     const pm = mech.previewMode === true;
     byFace.mechanical = { timeFormat: tf, previewMode: pm };
+
+    // Phase 18: normalise departures sub-object. Same shape and clamp as
+    // app.js's normaliser; flapBezelOpacity in [0.0, 0.4], default 0.22.
+    const dep = (byFace.departures && typeof byFace.departures === 'object')
+      ? byFace.departures
+      : {};
+    byFace.departures = {
+      flapBezelOpacity: clampDeparturesOpacity(dep.flapBezelOpacity)
+    };
 
     return { accent: accent, driftIntensity: driftIntensity, byFace: byFace };
   }
@@ -120,6 +150,9 @@
   const segDrift = document.getElementById('seg-drift');
   const segMechFormat = document.getElementById('seg-mech-format');
   const rowMechFormat = document.getElementById('row-mech-format');
+  const rowDepBezel = document.getElementById('row-dep-bezel');
+  const depBezelSlider = document.getElementById('dep-bezel-opacity');
+  const depBezelValEl = document.getElementById('dep-bezel-opacity-val');
   const btnTweaks = document.getElementById('btn-tweaks');
   const btnApply = document.getElementById('btn-apply');
   const toolbarName = document.getElementById('toolbar-name');
@@ -163,6 +196,20 @@
           accent: draftTweaks.accent,
           driftIntensity: draftTweaks.driftIntensity,
           byFace: { mechanical: { timeFormat: '24h', previewMode: true } }
+        });
+      } catch (e) { /* swallow first-paint errors */ }
+    } else if (face.liveRender && face.id === 'departures' && window.DeparturesFace) {
+      // Phase 18: live preview via window.DeparturesFace exported by app.js.
+      stage.id = 'stage-' + face.id;
+      window.DeparturesFace.init(stage);
+      try {
+        window.DeparturesFace.render(PREVIEW_STATE, {
+          accent: draftTweaks.accent,
+          driftIntensity: draftTweaks.driftIntensity,
+          byFace: {
+            departures: (draftTweaks.byFace && draftTweaks.byFace.departures) ||
+                        { flapBezelOpacity: DEPARTURES_OPACITY_DEFAULT }
+          }
         });
       } catch (e) { /* swallow first-paint errors */ }
     } else {
@@ -222,6 +269,18 @@
       renderTweaksUI();
     });
   });
+
+  // Phase 18: Departures bezel-opacity slider. Range [0.0, 0.4], step 0.02.
+  // Only meaningful when Departures is the active face; row hidden otherwise.
+  if (depBezelSlider) {
+    depBezelSlider.addEventListener('input', () => {
+      draftTweaks.byFace = draftTweaks.byFace || {};
+      const dep = draftTweaks.byFace.departures || { flapBezelOpacity: DEPARTURES_OPACITY_DEFAULT };
+      dep.flapBezelOpacity = clampDeparturesOpacity(parseFloat(depBezelSlider.value));
+      draftTweaks.byFace.departures = dep;
+      renderTweaksUI();
+    });
+  }
 
   // Wire tweaks toggle
   btnTweaks.addEventListener('click', () => {
@@ -352,6 +411,9 @@
         if (face.id === 'mechanical' && window.MechanicalFace) {
           try { window.MechanicalFace.render(PREVIEW_STATE, tweaks); }
           catch (e) { /* swallow render errors so the loop keeps ticking */ }
+        } else if (face.id === 'departures' && window.DeparturesFace) {
+          try { window.DeparturesFace.render(PREVIEW_STATE, tweaks); }
+          catch (e) { /* swallow render errors so the loop keeps ticking */ }
         }
       });
     }, 1000);
@@ -367,6 +429,16 @@
     const accent = ACCENT_PALETTE[draftTweaks.accent] || ACCENT_PALETTE.gold;
     document.documentElement.style.setProperty('--type-accent', accent.hex);
     document.documentElement.style.setProperty('--type-secondary', accent.secondary);
+    // Phase 18: seed --bezel-accent (frozen chrome) and --flap-bezel-opacity
+    // so the Departures preview card shows the correct bezel.
+    const hex = accent.hex.replace('#', '');
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    document.documentElement.style.setProperty('--bezel-accent', r + ', ' + g + ', ' + b);
+    const dep = (draftTweaks.byFace && draftTweaks.byFace.departures) || {};
+    const op = (typeof dep.flapBezelOpacity === 'number') ? dep.flapBezelOpacity : DEPARTURES_OPACITY_DEFAULT;
+    document.documentElement.style.setProperty('--flap-bezel-opacity', String(op));
     driftMult = DRIFT_INTENSITY_MULT[draftTweaks.driftIntensity];
   }
 
@@ -384,6 +456,14 @@
     segMechFormat.querySelectorAll('.seg-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.val === mechTf);
     });
+    // Phase 18: departures bezel-opacity slider value sync
+    const depOp = (draftTweaks.byFace && draftTweaks.byFace.departures && typeof draftTweaks.byFace.departures.flapBezelOpacity === 'number')
+      ? draftTweaks.byFace.departures.flapBezelOpacity
+      : DEPARTURES_OPACITY_DEFAULT;
+    if (depBezelSlider && depBezelSlider.value !== String(depOp)) {
+      depBezelSlider.value = String(depOp);
+    }
+    if (depBezelValEl) depBezelValEl.textContent = depOp.toFixed(2);
     applyTweaksToPreview();
   }
 
@@ -409,6 +489,8 @@
 
     // Phase 17: show mechanical-specific tweak row only when Mechanical is active.
     if (rowMechFormat) rowMechFormat.hidden = (face.id !== 'mechanical');
+    // Phase 18: show departures bezel-opacity slider only when Departures is active.
+    if (rowDepBezel) rowDepBezel.hidden = (face.id !== 'departures');
 
     if (scroll) {
       sectionEls[i].scrollIntoView({ behavior: 'smooth', block: 'start' });

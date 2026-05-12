@@ -41,13 +41,17 @@ The authoritative specification is `2026 04 27 10 15 PM - SDD - Ambient Display 
 - `ClockfaceRegistry` -- face lookup, normalizes localStorage values, falls back to `calm` on invalid input; applies accent and driftIntensity tweaks on boot
 - `CalmFace` -- Phase 16 face object; `init/render/teardown` contract; `render()` is a no-op in Phase 16 (shipped DisplayModule handles Calm DOM writes); placeholder for Phases 17-20 faces in the same shape
 - `MechanicalFace` -- Phase 17 face object; first face with real (non-no-op) `render(state, tweaks)` logic; builds a five-column complications grid (TEMP, AIR, TIDE, MOON, SUN at y=620), HH:MM time at 236 px JetBrains Mono 300, and a 1 px minute-arc hairline at y=265; time alternates two homes every 3h; grid columns rotate every 6h via deterministic permutation; `tweaks.byFace.mechanical.timeFormat` controls 24h/12h
-- `SOLARI_PICKER` boot guard -- `clockface.html` sets `window.SOLARI_PICKER = true` before loading `app.js`; the boot IIFE returns early, skipping all fetchers, timers, render loop, and storage-event listener; face class objects remain available to `clockface.js` via `window.MechanicalFace` / `window.CalmFace` exports; canonical pattern for Phases 18-20 picker previews
+- `DeparturesFace` -- Phase 18 face object; split-flap board with five data rows, per-character KineticType cascade (110 ms stagger), gold bezel borders on the flap-pair headline time, per-row Perlin drift via five independent `departureRow0..4` sub-channels; `tweaks.byFace.departures.flapBezelOpacity` controls bezel opacity
+- `CONFIG.faceActiveKeys` -- face-keyed table mapping each face ID to its set of active drift channel keys; `DriftEngine.start()` reads this instead of hard-coding a channel list; adding Phase 19/20 requires only a new table entry
+- `--bezel-accent` CSS variable -- structural-chrome accent seeded once at boot from the accent palette; never written by `SkyColorModule` or `ObservanceModule`; used only by the Departures flap-pair bezel border (opted out of sky modulation via a separate CSS var, not the `--type-accent` path)
+- `MoonModule` AppState extensions -- `AppState.moon.moonrise`, `.moonset`, `.alwaysUp`, `.alwaysDown` added in Phase 18 for Departures row data; reused by Phase 20 (Horizon)
+- `SOLARI_PICKER` boot guard -- `clockface.html` sets `window.SOLARI_PICKER = true` before loading `app.js`; the boot IIFE returns early, skipping all fetchers, timers, render loop, and storage-event listener; face class objects remain available to `clockface.js` via `window.MechanicalFace` / `window.CalmFace` / `window.DeparturesFace` exports; canonical pattern for Phases 19-20 picker previews
 - Storage listener (boot) -- any write to `solari.clockface`, `solari.clockface.tweaks`, or `solari.clockface.applied_at` triggers `location.reload()`; face changes are configuration events, not live state
-- Picker (`clockface.html` + `clockface.js`) -- face selection, accent and driftIntensity tweaks, live-drift card preview; long-press 600 ms on moon disc (Calm) or `#mech-time` (Mechanical) opens it; single tap remains VersionOverlay; Mechanical card mounts live MechanicalFace render; Calm card remains hand-built mock
+- Picker (`clockface.html` + `clockface.js`) -- face selection, accent and driftIntensity tweaks, live-drift card preview; long-press 600 ms on moon disc (Calm), `#mech-time` (Mechanical), or `#dep-time` (Departures) opens it; single tap remains VersionOverlay; Mechanical and Departures cards mount live face renders; Calm card remains hand-built mock
 
 ## Phase Status
 
-V0 complete (Phases 1-15). V1 in progress (Phases 16-17 complete).
+V0 complete (Phases 1-15). V1 in progress (Phases 16-18 complete).
 
 - [x] Phase 1: Static layout
 - [x] Phase 2: Live clock and date
@@ -66,7 +70,7 @@ V0 complete (Phases 1-15). V1 in progress (Phases 16-17 complete).
 - [x] Phase 15: Holiday/observance system
 - [x] Phase 16: Clockface foundation -- Stage primitive, face registry, CalmFace, picker page, storage contract, accent and driftIntensity tweaks (V1 opening phase)
 - [x] Phase 17: Mechanical face -- MechanicalFace with five-column complications grid, JetBrains Mono 300, minute-arc hairline, per-face macro shifts, SOLARI_PICKER boot guard, picker live preview
-- [ ] Phase 18: Departures face (split-flap row layout, gold border bezels)
+- [x] Phase 18: Departures face -- DeparturesFace with five data rows, per-character split-flap cascade, gold bezel borders, five independent departureRow drift sub-channels, face-aware DriftEngine activeKeys, MoonModule moonrise/moonset extensions
 - [ ] Phase 19: Editorial face (Cormorant Garamond italic time, almanac voice paragraph)
 - [ ] Phase 20: Horizon face (sun and moon arc diagram with hour ticks)
 
@@ -153,6 +157,7 @@ icons/          # empty (falls back to screenshot icon)
 docs/           # phase implementation specs and design notes
   phase-16-clockface-foundation.md
   phase-17-mechanical-face.md
+  phase-18-departures-face.md
 .github/
   workflows/
     refresh-tides.yml   # weekly cron: fetches and commits DFO tide predictions

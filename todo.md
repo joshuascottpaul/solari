@@ -5,9 +5,14 @@ Active work tracker. CLAUDE.md is for stable reference; this file is for in-flig
 ## Active V1 work
 
 - [x] **Phase 17: Mechanical face** -- shipped 2026-05-11. Spec at `docs/phase-17-mechanical-face.md`. Hermione approved with minor follow-ups resolved inline (ACCENT_PALETTE dual-source comment, `--type-tertiary` 60s transition fix).
-- [ ] **Phase 18: Departures face** -- split-flap row layout, gold-border bezels. Open question: bezels are filled rectangles, needs explicit burn-in ruling -> ripley before chihiro/ariadne. Departures bezel burn-in ruling still gated before chihiro/ariadne spec work begins.
+- [x] **Phase 18: Departures face** -- shipped 2026-05-12. Spec at `docs/phase-18-departures-face.md`. Five data rows, per-character KineticType cascade (110 ms stagger), gold bezel borders, face-aware DriftEngine activeKeys, MoonModule moonrise/moonset extensions.
 - [ ] **Phase 19: Editorial face** -- Cormorant Garamond italic time, almanac voice paragraph. New font in budget -> chihiro for typography decisions, then ariadne.
 - [ ] **Phase 20: Horizon face** -- sun and moon arc diagram with hour ticks. New layout primitive (arc) -> chihiro, then ariadne.
+
+## Phase 18 follow-ups
+
+- [ ] **`detailAccentWord` dead code** -- `DepartureRow.detailAccentWord` is set in the row-builder but never read by `_renderRow`. Cleanup candidate; remove the field and its assignments before Phase 19 ships if no use case emerges.
+- [ ] **`#dep-board-header` brightness filter exemption** -- `filter: brightness(var(--lum-mod))` applies to the board including the column header. If Phase 19 or 20 add tall elements that overlap the header zone, revisit whether the header strip should be exempt. No current issue.
 
 ## Phase 17 follow-ups
 
@@ -26,6 +31,7 @@ Remaining from Phase 16 verification:
 
 ## Tech debt / doc cleanups
 
+- [x] **Paper accent hex correction** -- `ACCENT_PALETTE.paper.hex` was `#F0EBDC` in the Phase 16 spec (would render identical to `--type-primary` and make the accent invisible). Corrected to `#E8E0D0` in `docs/phase-16-clockface-foundation.md` 2026-05-12. Shipped code (`app.js:126`, `clockface.js:32`) was already correct; spec only needed fixing.
 - [x] **Bundle accounting refresh** -- Phase 17 audit complete: ~145-149 KB cold-cache (including JetBrains Mono 300); ~124 KB headroom against 250 KB target. Phase 19 will add Cormorant Garamond -> ripley to re-check before Phase 19 lands.
 - [ ] **ACCENT_PALETTE three-way sync** -- `ACCENT_PALETTE` in `app.js` is referenced in at least two places (main display and picker preview path). As faces accumulate, the sync surface grows. Consider extraction to a shared constant or config entry by Phase 19. Low priority.
 - [ ] **`data.js` placeholder** -- still in repo, still not loaded (CLAUDE.md line 18). Either delete or document intent. Low priority -> misaka, defer until next housekeeping pass.
@@ -33,6 +39,6 @@ Remaining from Phase 16 verification:
 
 ## Reserved / future
 
-- [ ] **Departures bezel burn-in ruling** -- handoff justifies `#16140f` filled bezels behind flap chars as small enough not to violate "no solid blocks" (layer 8). Needs explicit ripley sign-off before Phase 18 -> ripley before Phase 18 spec.
-- [ ] **Per-face accent surfaces** -- Calm uses colon; Mechanical adds minute-arc; Departures will add imminent-row tint; Editorial/Horizon TBD. As faces accumulate, consider a per-face `accentTargets` declaration in CONFIG to make the surface explicit. Not needed until Phase 18 or Phase 19.
+- [x] **Departures bezel burn-in ruling** -- resolved in Phase 18 spec: transparent center, 1 px gold-22% border only (filled `#16140f` rectangles rejected by chihiro). No solid blocks; layer 8 satisfied.
+- [ ] **Per-face accent surfaces** -- Calm uses colon; Mechanical adds minute-arc; Departures adds imminent-row tint and flap-pair headline; Editorial/Horizon TBD. As faces accumulate, consider a per-face `accentTargets` declaration in CONFIG to make the surface explicit. Not needed until Phase 19 or 20.
 - [ ] **Hot-swap face change (avoid full reload on Apply)** -- Phase 16 chose `location.reload()` on storage event. `teardown()` shape exists on the face contract but is never called. If face changes become more frequent (e.g. scheduled time-of-day switching), revisit -> low priority.

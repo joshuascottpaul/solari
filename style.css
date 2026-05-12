@@ -55,6 +55,25 @@
   --horizon-dx: 0px;      --horizon-dy: 0px;
   --departureRow-dx: 0px; --departureRow-dy: 0px;
   --tickRail-dx: 0px;     --tickRail-dy: 0px;
+
+  /* Phase 18: per-row drift offsets (set by DriftEngine when Departures active) */
+  --departureRow0-dx: 0px; --departureRow0-dy: 0px;
+  --departureRow1-dx: 0px; --departureRow1-dy: 0px;
+  --departureRow2-dx: 0px; --departureRow2-dy: 0px;
+  --departureRow3-dx: 0px; --departureRow3-dy: 0px;
+  --departureRow4-dx: 0px; --departureRow4-dy: 0px;
+
+  /* Phase 18: bezel accent (frozen at boot from accent palette) +
+     bezel opacity tweak (range 0.0 to 0.4, default 0.22). */
+  --bezel-accent: 244, 197, 108;
+  --flap-bezel-opacity: 0.22;
+
+  /* Phase 18: macro-shift y-delta for the upper band (set by MacroShifter). */
+  --dep-upper-shift-y: 0px;
+
+  /* Phase 18: shared 1 px chrome rule colour used by Departures header/footer
+     dividers. Calm and Mechanical inline-equivalent values exist elsewhere. */
+  --rule: rgba(240, 235, 220, 0.10);
 }
 
 /* Reset */
@@ -332,4 +351,199 @@ html, body {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--type-tertiary);
+}
+
+/* ---------------------------------------------------------------- */
+/* Phase 18: Departures face                                         */
+/* ---------------------------------------------------------------- */
+
+#dep-stage {
+  position: absolute;
+  inset: 0;
+  font-family: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
+  color: var(--type-primary);
+  font-weight: 300;
+}
+
+/* Upper-band group: header strip + flap-pair time + status block. The
+   60s ease-in-out transition matches the Calm/Mechanical macro-shift cadence. */
+#dep-upper {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 260px;
+  transform: translate(0, var(--dep-upper-shift-y, 0px));
+  transition: transform 60s ease-in-out;
+}
+
+#dep-header {
+  position: absolute;
+  top: 60px;
+  left: 80px;
+  right: 80px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  letter-spacing: 0.34em;
+  color: var(--type-tertiary);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 14px;
+  transform: translate(var(--date-dx, 0px), var(--date-dy, 0px));
+  filter: brightness(var(--lum-mod, 1));
+  white-space: nowrap;
+}
+
+#dep-time {
+  position: absolute;
+  top: 140px;
+  left: 80px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  transform: translate(var(--time-dx, 0px), var(--time-dy, 0px));
+  filter: brightness(var(--lum-mod, 1));
+  line-height: 1;
+}
+
+/* Flap-pair bezel: 1 px gold border at the live --flap-bezel-opacity alpha.
+   Transparent centre; structural chrome only, never repainted by Sky/Observance. */
+.dep-flap-group {
+  display: inline-block;
+  padding: 4px 14px 2px;
+  border-radius: 5px;
+  border: 1px solid rgba(var(--bezel-accent, 244, 197, 108), var(--flap-bezel-opacity, 0.22));
+  color: var(--type-accent);
+  font-variant-numeric: tabular-nums;
+  font-size: 96px;
+  line-height: 1;
+}
+
+.dep-flap-char {
+  display: inline-block;
+  width: 0.62em;
+  text-align: center;
+}
+
+.dep-colon {
+  font-size: 80px;
+  color: var(--type-accent);
+  opacity: 0.85;
+  margin: 0 6px;
+}
+
+#dep-status {
+  position: absolute;
+  top: 140px;
+  right: 80px;
+  width: 360px;
+  font-size: 13px;
+  letter-spacing: 0.30em;
+  text-transform: uppercase;
+  line-height: 1.7;
+  text-align: right;
+  color: var(--type-tertiary);
+  transform: translate(var(--date-dx, 0px), var(--date-dy, 0px));
+  filter: brightness(var(--lum-mod, 1));
+}
+
+#dep-status .dep-status-weather { color: var(--type-secondary); }
+
+#dep-board-header {
+  position: absolute;
+  top: 300px;
+  left: 80px;
+  right: 80px;
+  display: grid;
+  grid-template-columns: 110px 110px 1fr 200px;
+  column-gap: 24px;
+  font-size: 11px;
+  letter-spacing: 0.30em;
+  text-transform: uppercase;
+  color: var(--type-tertiary);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 10px;
+  transform: translate(var(--tickRail-dx, 0px), var(--tickRail-dy, 0px));
+}
+
+#dep-board-header > :nth-child(4) { text-align: right; }
+
+#dep-board {
+  position: absolute;
+  top: 340px;
+  left: 80px;
+  right: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.dep-row {
+  display: grid;
+  grid-template-columns: 110px 110px 1fr 200px;
+  column-gap: 24px;
+  align-items: baseline;
+  color: var(--type-secondary);
+  filter: brightness(var(--lum-mod, 1));
+  transition: opacity 480ms ease-in-out;
+}
+
+.dep-row[data-row="0"] { transform: translate(var(--departureRow0-dx, 0px), var(--departureRow0-dy, 0px)); }
+.dep-row[data-row="1"] { transform: translate(var(--departureRow1-dx, 0px), var(--departureRow1-dy, 0px)); }
+.dep-row[data-row="2"] { transform: translate(var(--departureRow2-dx, 0px), var(--departureRow2-dy, 0px)); }
+.dep-row[data-row="3"] { transform: translate(var(--departureRow3-dx, 0px), var(--departureRow3-dy, 0px)); }
+.dep-row[data-row="4"] { transform: translate(var(--departureRow4-dx, 0px), var(--departureRow4-dy, 0px)); }
+
+.dep-row.is-past { opacity: 0.55; }
+.dep-row.is-imminent .dep-status-cell { color: var(--type-accent); }
+.dep-row.is-imminent .dep-time-cell { color: var(--type-accent); }
+
+.dep-time-cell {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  color: var(--type-primary);
+}
+
+.dep-event-cell {
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--type-tertiary);
+}
+
+.dep-detail-cell {
+  font-size: 18px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--type-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dep-detail-accent { color: var(--type-accent); }
+
+.dep-status-cell {
+  font-size: 14px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-align: right;
+  color: var(--type-secondary);
+}
+
+.dep-row.is-past .dep-status-cell { color: var(--type-tertiary); }
+
+#dep-footer {
+  position: absolute;
+  bottom: 60px;
+  left: 80px;
+  right: 80px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--type-tertiary);
+  transform: translate(var(--tickRail-dx, 0px), var(--tickRail-dy, 0px));
+  filter: brightness(var(--lum-mod, 1));
+  white-space: nowrap;
 }
