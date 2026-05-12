@@ -3,11 +3,12 @@
 | Field    | Value                                                            |
 |----------|------------------------------------------------------------------|
 | Phase    | 20 of 20 (V1, final face)                                        |
-| Status   | Draft                                                            |
+| Status   | Shipped                                                          |
+| Shipped  | 2026-05-12                                                       |
 | Date     | 2026-05-12                                                       |
 | Author   | ariadne                                                          |
-| Impl     | misaka (TBD)                                                     |
-| Depends  | Phase 16 (Clockface Foundation, shipped 2026-05-07), Phase 17 (Mechanical, shipped 2026-05-11), Phase 18 (Departures), Phase 19 (Editorial) |
+| Impl     | misaka                                                           |
+| Depends  | Phase 16 (Clockface Foundation, shipped 2026-05-07), Phase 17 (Mechanical, shipped 2026-05-11), Phase 18 (Departures, shipped 2026-05-12), Phase 19 (Editorial, shipped 2026-05-12) |
 | Unblocks | V1 feature complete                                              |
 
 ## 1. Goal
@@ -1284,7 +1285,18 @@ The following items require resolution during implementation or hardware verific
 
 7. **Golden hour exact-time computation.** Section 6 lists three branching cases for golden hour selection; the production code may default to "always show the evening golden hour" for simplicity. **Resolution: ship the simplified version unless misaka has bandwidth to implement the morning/evening fork.** Not a user blocker.
 
-## 21. References
+## 21. Shipped Status
+
+Resolved items from implementation and hermione review. All were closed before merge.
+
+- **Horizon drift period 109 s** -- SHIPPED. Spec text initially read 101 s in an early draft. chihiro flagged the coprime collision with the `sun` channel (also 101 s); period was bumped to 109 s (next prime above 101) before merge. All references in `CONFIG.driftClasses` and the burn-in audit reflect 109 s.
+- **`preserveAspectRatio` not set on SVG** -- SHIPPED. Spec compliance: mikasa caught an unintentional `preserveAspectRatio="none"` attribute in draft code and removed it; the viewBox is 1180x820 matching the stage exactly, so no attribute is needed.
+- **`_renderStatus` gate key** -- SHIPPED. mikasa added a `_renderStatus` gate key to prevent the status block from re-rendering every tick when data is unchanged, matching the pattern from Mechanical and Departures.
+- **Horizon line x2 = DAY_RIGHT (1100)** -- SHIPPED. Initial draft had `x2 = DAY_RIGHT + 10` (1110); corrected to 1100 before merge so the horizon line terminates cleanly at the day-arc boundary.
+- **Bundle size** -- SHIPPED at 255,607 bytes uncompressed (393 bytes under the 256,000-byte cap with Google Fonts CDN excluded, consistent with prior phase audits).
+- **`accentSkyTrack` opt-out** -- SHIPPED as a hook. The `SkyColorModule` conditional that reads `ACTIVE_FACE.accentSkyTrack` is live code. However, today's V1 `SkyColorModule` does not modulate `--type-accent` on any sky-altitude band (the V0 modulation logic was removed in an earlier phase). The guard documents the V2 contract: if sky-altitude accent modulation is ever added back, Horizon's opt-out will activate automatically without a code change.
+
+## 22. References
 
 - SDD Section 9 (Burn-in Protection, eight layers).
 - SDD Section 11.1 (Kinetic transition timing -- not used by Horizon).

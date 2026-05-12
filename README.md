@@ -19,6 +19,7 @@ Live: [joshuascottpaul.github.io/solari](https://joshuascottpaul.github.io/solar
 
 ## Key features
 
+- 5 selectable clockfaces: Calm, Mechanical, Departures, Editorial, Horizon (V1 feature complete)
 - Split-flap kinetic transitions on rotating content slots
 - Sky-colored typography that shifts with sun altitude, weather, and observances
 - 8-layer burn-in protection: Perlin drift, pixel-shift, kinetic churn, macro position shifts, sky-color modulation, luminance breath, daily 03:00 refresher cycle, and rendering hygiene

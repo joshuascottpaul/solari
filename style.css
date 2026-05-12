@@ -729,3 +729,182 @@ html, body {
 
 /* Sun arrow glyphs at 55% alpha accent (mirrors Phase 17 SUN cell). */
 .ed-foot-glyph { color: var(--type-accent); opacity: 0.55; }
+
+/* ---------------------------------------------------------------- */
+/* Phase 20: Horizon face                                            */
+/* ---------------------------------------------------------------- */
+
+#hz-stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#hz-header {
+  position: absolute;
+  left: 80px;
+  right: 80px;
+  top: 50px;
+  display: flex;
+  justify-content: space-between;
+  font-family: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
+  font-weight: 300;
+  font-size: 12px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--type-tertiary);
+  white-space: nowrap;
+  filter: brightness(var(--lum-mod));
+  transform: translate(var(--date-dx, 0px), var(--date-dy, 0px));
+}
+
+/* Full-stage SVG diagram. Layers ride per-channel drift via inner <g>. */
+#hz-sky {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1180px;
+  height: 820px;
+  pointer-events: none;
+}
+
+/* Diagram interior (horizon line, ticks, arcs, notches, cursor). */
+#hz-sky .hz-sky-drift {
+  transform: translate(var(--horizon-dx, 0px), var(--horizon-dy, 0px));
+  transform-origin: 590px 410px;
+}
+
+/* Sun and moon glyphs ride their own per-element drift. */
+#hz-sky .hz-sun-glyph {
+  transform: translate(var(--sun-dx, 0px), var(--sun-dy, 0px));
+}
+#hz-sky .hz-moon-glyph {
+  transform: translate(var(--moon-dx, 0px), var(--moon-dy, 0px));
+}
+
+/* Hour labels strip (5 fixed-x divs). Drift on --date channel. */
+#hz-hour-labels {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 472px;
+  height: 18px;
+  font-family: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
+  font-weight: 300;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  color: var(--type-tertiary);
+  filter: brightness(var(--lum-mod));
+  transform: translate(var(--date-dx, 0px), var(--date-dy, 0px));
+  pointer-events: none;
+}
+
+.hz-hour-label {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* Arc-terminal labels (sun row at top, moon row 14 px below). Drift on slot. */
+#hz-arc-labels {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 498px;
+  height: 32px;
+  font-family: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
+  font-weight: 300;
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  filter: brightness(var(--lum-mod));
+  transform: translate(var(--slot-dx, 0px), var(--slot-dy, 0px));
+  pointer-events: none;
+}
+
+.hz-sr-label, .hz-ss-label {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  color: rgba(244, 197, 108, 0.60);
+  white-space: nowrap;
+}
+
+.hz-mr-label, .hz-ms-label {
+  position: absolute;
+  top: 14px;
+  transform: translateX(-50%);
+  color: rgba(168, 199, 255, 0.55);
+  white-space: nowrap;
+}
+
+/* Big-time block. Home A (default): left=90, top=560. MacroShifter writes
+   left/top in stage pixels at the 6 h boundary. Cross-fade classes flip
+   opacity around the position swap. */
+#hz-time {
+  position: absolute;
+  left: 90px;
+  top: 560px;
+  font-family: 'Manrope', system-ui, sans-serif;
+  font-weight: 200;
+  font-size: 220px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--type-primary);
+  filter: brightness(var(--lum-mod));
+  transform: translate(var(--time-dx, 0px), var(--time-dy, 0px));
+}
+
+#hz-time .hz-colon {
+  color: var(--type-accent);
+  opacity: 0.55;
+  margin: 0 0.02em;
+}
+
+#hz-time .hz-ampm {
+  display: inline-block;
+  font-size: 42px;
+  font-weight: 300;
+  letter-spacing: 0.18em;
+  vertical-align: top;
+  margin-left: 18px;
+  color: var(--type-secondary);
+  text-transform: uppercase;
+}
+
+#hz-time .hz-ampm[hidden] { display: none; }
+
+/* Phase 20: cross-fade transition classes. MacroShifter toggles these on
+   the 6 h boundary; CSS handles the opacity tween. */
+#hz-time.is-fade-out {
+  opacity: 0;
+  transition: opacity 400ms ease-out;
+}
+#hz-time.is-fade-in {
+  opacity: 1;
+  transition: opacity 400ms ease-in;
+}
+
+/* Status block. Right-anchored at right=90, top=580. Drift on slot. */
+#hz-status {
+  position: absolute;
+  right: 90px;
+  top: 580px;
+  text-align: right;
+  font-family: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
+  font-weight: 300;
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--type-tertiary);
+  line-height: 2.0;
+  white-space: nowrap;
+  filter: brightness(var(--lum-mod));
+  transform: translate(var(--slot-dx, 0px), var(--slot-dy, 0px));
+}
+
+.hz-status-headline.is-day   { color: var(--type-accent); }
+.hz-status-headline.is-night { color: var(--type-secondary); }
+.hz-status-air               { opacity: 0.7; }

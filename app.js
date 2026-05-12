@@ -45,7 +45,10 @@ const CONFIG = {
     slot:         { ampX: 12, ampY: 8,  periodSec: 143 },
     moon:         { ampX: 18, ampY: 12, periodSec: 73  },
     sun:          { ampX: 18, ampY: 12, periodSec: 101 },
-    horizon:      { ampX: 18, ampY: 12, periodSec: 101 },
+    // Phase 20: bumped 101 -> 109. Horizon activates `sun` and `horizon`
+    // on the same face; 101/101 would lock-step. 109 is the next prime,
+    // pairwise coprime with 61/73/79/89/101/117/143.
+    horizon:      { ampX: 18, ampY: 12, periodSec: 109 },
     departureRow: { ampX: 6,  ampY: 4,  periodSec: 61  },
     tickRail:     { ampX: 4,  ampY: 3,  periodSec: 79  },
     // Phase 19: per-face amplitude override for the `time` channel.
@@ -68,10 +71,8 @@ const CONFIG = {
     departures: ['time', 'date', 'tickRail',
                  'departureRow0', 'departureRow1', 'departureRow2',
                  'departureRow3', 'departureRow4'],
-    // Phase 19: Editorial has no moon and no departureRow channels.
-    // `time` (per-face amp 30/22), `date` (right-column block),
-    // `slot` (paragraph), `tickRail` (footer strip).
-    editorial:  ['time', 'date', 'slot', 'tickRail']
+    editorial:  ['time', 'date', 'slot', 'tickRail'],
+    horizon:    ['time', 'date', 'slot', 'moon', 'sun', 'horizon']
   },
   pixelShift: {
     intervalMin: 6,
@@ -130,7 +131,12 @@ const CONFIG = {
       // than percent. MacroShifter auto-detects pixel vs percent by entry
       // value range (any value > 100 -> pixels). Two homes alternated on
       // a 6 h interval (see timeIntervalHoursByFace).
-      editorial: [[100, 200], [560, 200]]
+      editorial: [[100, 200], [560, 200]],
+      // Phase 20: Horizon uses pixel coords. Home A = bottom-left
+      // (left: 90, top: 560), Home B = bottom-right (left: 870, top: 560
+      // = 1180 - 90 - 220 wide-block-allowance). Macro shifter writes
+      // left/top directly and cross-fades opacity on swap.
+      horizon: [[90, 560], [870, 560]]
     },
     // Phase 19: per-face interval override. Editorial and Horizon shift
     // every 6 h; faces without an entry use the global timeIntervalHours
@@ -138,6 +144,13 @@ const CONFIG = {
     timeIntervalHoursByFace: {
       editorial: 6,
       horizon: 6
+    },
+    // Phase 20: per-face transition style. 'translate' (default) tweens
+    // left/top with a CSS transition; 'fade' cross-fades opacity, swaps
+    // home at the midpoint, and fades back in. Horizon uses 'fade' so the
+    // 220 px big-time block does not read as obvious sliding motion.
+    timeTransitionStyleByFace: {
+      horizon: 'fade'
     },
     // Phase 19: paired right-column block homes. When set, MacroShifter
     // mirrors a second element (#ed-right) on the same interval so the
@@ -1253,6 +1266,13 @@ const SkyColorModule = {
       `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.62)`);
     root.setProperty('--type-tertiary',
       `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.42)`);
+
+    // Phase 20: --type-accent opt-out contract. V1 has no sky-altitude
+    // modulation of --type-accent (accent is set once at boot by
+    // ClockfaceRegistry.applyAccent). When V2 adds modulation, check
+    // `ACTIVE_FACE.accentSkyTrack === false` here and skip the write for
+    // faces that opt out (HorizonFace declares `accentSkyTrack: false` so
+    // its gold cursor / colon / DAY headline stay fixed across all sky bands).
   },
 
   _applyWeatherMod(rgb, [satMult, lightAdd, hueAdd]) {
@@ -1370,7 +1390,11 @@ const DriftEngine = {
     departureRow1: { x: 1400, y: 1500 },
     departureRow2: { x: 1600, y: 1700 },
     departureRow3: { x: 1800, y: 1900 },
-    departureRow4: { x: 2000, y: 2100 }
+    departureRow4: { x: 2000, y: 2100 },
+    // Phase 20: Horizon channels. Offsets just need to differ from every
+    // other entry so sample positions are decorrelated on a fresh boot.
+    sun:           { x: 1300, y: 1400 },
+    horizon:       { x: 1500, y: 1600 }
   },
 
   // Phase 16: drift intensity multiplier (read from Tweaks at boot).
@@ -1472,7 +1496,10 @@ const DriftEngine = {
     departureRow1: { hw: 510, hh: 18 },
     departureRow2: { hw: 510, hh: 18 },
     departureRow3: { hw: 510, hh: 18 },
-    departureRow4: { hw: 510, hh: 18 }
+    departureRow4: { hw: 510, hh: 18 },
+    // Phase 20: Horizon glyph + diagram half-extents.
+    sun:           { hw: 60,  hh: 60  },   // halo r=60
+    horizon:       { hw: 510, hh: 410 }    // full 1180x820 diagram (half-extents)
   },
   // Phase 19: per-face element-size overrides. When the active face has an
   // entry here, the clamp uses these half-extents instead of the base table.
@@ -1481,6 +1508,12 @@ const DriftEngine = {
   _elementSizesByFace: {
     editorial: {
       time: { hw: 240, hh: 162 }
+    },
+    // Phase 20: Horizon's #hz-time is Manrope 200, 220 px, anchored top-left
+    // via pixel-coord home (90,560 or 870,560). Half-extents 260 x 110 hold
+    // the H:MM block + optional 42 px AM/PM suffix.
+    horizon: {
+      time: { hw: 260, hh: 110 }
     }
   },
 
@@ -1550,7 +1583,13 @@ const DriftEngine = {
     departureRow1: { x: 50, y: 49 },
     departureRow2: { x: 50, y: 54 },
     departureRow3: { x: 50, y: 59 },
-    departureRow4: { x: 50, y: 63 }
+    departureRow4: { x: 50, y: 63 },
+    // Phase 20: sun glyph follows its computed (x, y) on the arc; the
+    // anchor is a coarse stage-centre default for clamp math (the disc
+    // moves continuously; clamping to centre keeps it from drifting off
+    // the visible stage edges). horizon = diagram interior centroid.
+    sun:           { x: 50, y: 50 },
+    horizon:       { x: 50, y: 50 }
   },
 
   _resolveAnchorX(cssPrefix, vw) {
@@ -1625,12 +1664,23 @@ const MacroShifter = {
     return null;
   },
 
-  // Phase 17/19: the time element id differs per face. Mechanical paints
-  // its own #mech-time inside the stage; Editorial uses #ed-time; Calm uses #time.
+  // Phase 17/19/20: the time element id differs per face. Mechanical paints
+  // its own #mech-time inside the stage; Editorial uses #ed-time; Horizon
+  // uses #hz-time; Calm uses #time.
   _timeElementId() {
     if (ACTIVE_FACE_ID === 'mechanical') return 'mech-time';
     if (ACTIVE_FACE_ID === 'editorial')  return 'ed-time';
+    if (ACTIVE_FACE_ID === 'horizon')    return 'hz-time';
     return 'time';
+  },
+
+  // Phase 20: per-face transition style. 'translate' (default) tweens
+  // left/top with a CSS transition. 'fade' cross-fades opacity via two
+  // CSS classes, swapping position while opacity is 0.
+  _timeTransitionStyle() {
+    var byFace = CONFIG.macroShift.timeTransitionStyleByFace;
+    if (byFace && byFace[ACTIVE_FACE_ID]) return byFace[ACTIVE_FACE_ID];
+    return 'translate';
   },
 
   // Phase 19: detect pixel vs percent home format. Calm and Mechanical use
@@ -1732,6 +1782,15 @@ const MacroShifter = {
     var timeHomes = this._timeHomes();
     var home = timeHomes[this._timeIndex];
     var unit = this._homesArePixels(timeHomes) ? 'px' : '%';
+
+    // Phase 20: cross-fade transition style (Horizon). Fade-out 400 ms,
+    // swap position while invisible, fade-in 400 ms. On first apply
+    // (withTransition === false), skip the fade and place directly so
+    // the boot paint lands at the right home without an opacity dip.
+    if (withTransition && this._timeTransitionStyle() === 'fade') {
+      this._applyTimeFade(home, unit);
+      return;
+    }
     this._applyHome(this._timeElementId(), home, CONFIG.macroShift.timeTransitionSec, 'time', withTransition, unit);
 
     // Phase 19: paired-block mirror. Editorial swaps #ed-right alongside
@@ -1749,12 +1808,51 @@ const MacroShifter = {
   },
 
   _applyMoon(withTransition) {
-    // Mechanical, Departures, and Editorial have no moon disc.
+    // Mechanical, Departures, Editorial, and Horizon have no moon disc.
     if (ACTIVE_FACE_ID === 'mechanical' ||
         ACTIVE_FACE_ID === 'departures' ||
-        ACTIVE_FACE_ID === 'editorial') return;
+        ACTIVE_FACE_ID === 'editorial' ||
+        ACTIVE_FACE_ID === 'horizon') return;
     var home = CONFIG.macroShift.moonHomes[this._moonIndex];
     this._applyHome('moon-disc', home, CONFIG.macroShift.moonTransitionSec, 'moon', withTransition, '%');
+  },
+
+  // Phase 20: cross-fade implementation. 400 ms fade-out, swap home while
+  // invisible, 400 ms fade-in. Position swap goes through _applyHome with
+  // withTransition=false (no CSS transition on left/top during fade) so
+  // there is no slide. _fadeStep1Id and _fadeStep2Id are tracked so
+  // multiple back-to-back shifts do not stack.
+  _fadeStep1Id: null,
+  _fadeStep2Id: null,
+  _applyTimeFade(home, unit) {
+    var id = this._timeElementId();
+    var el = document.getElementById(id);
+    if (!el) return;
+    var self = this;
+
+    // Clear any in-flight fade so a back-to-back shift does not orphan
+    // the element at opacity 0.
+    if (this._fadeStep1Id !== null) { clearTimeout(this._fadeStep1Id); this._fadeStep1Id = null; }
+    if (this._fadeStep2Id !== null) { clearTimeout(this._fadeStep2Id); this._fadeStep2Id = null; }
+    el.classList.remove('is-fade-in');
+
+    // Step 0: trigger fade-out via class. CSS handles the opacity tween.
+    el.classList.add('is-fade-out');
+
+    // Step 1: at 400 ms, swap position (no CSS left/top transition) and
+    // flip classes for the fade-in.
+    this._fadeStep1Id = setTimeout(function () {
+      self._fadeStep1Id = null;
+      self._applyHome(id, home, 0, 'time', false, unit);
+      el.classList.remove('is-fade-out');
+      el.classList.add('is-fade-in');
+      // Step 2: at +400 ms, remove the fade-in class so the element settles
+      // at default opacity (1) without leaving the class stuck.
+      self._fadeStep2Id = setTimeout(function () {
+        self._fadeStep2Id = null;
+        el.classList.remove('is-fade-in');
+      }, 400);
+    }, 400);
   }
 };
 
@@ -2125,10 +2223,12 @@ const VersionOverlay = {
     // Mechanical has no moon, so the picker entry attaches to the time
     // numerals (#mech-time). Phase 18: Departures attaches to #dep-time.
     // Phase 19: Editorial attaches to #ed-time (no moon disc).
+    // Phase 20: Horizon attaches to #hz-time (largest stable element).
     let surfaceId;
     if (ACTIVE_FACE_ID === 'mechanical') surfaceId = 'mech-time';
     else if (ACTIVE_FACE_ID === 'departures') surfaceId = 'dep-time';
     else if (ACTIVE_FACE_ID === 'editorial') surfaceId = 'ed-time';
+    else if (ACTIVE_FACE_ID === 'horizon') surfaceId = 'hz-time';
     else surfaceId = 'moon-disc';
     const surface = document.getElementById(surfaceId);
     if (!surface) return;
@@ -3881,6 +3981,611 @@ const EditorialFace = {
   }
 };
 
+// Phase 20: Horizon face. Astronomical-truth diagram: full-stage SVG with
+// horizon line, sun + moon arcs, hour ticks, sunrise/sunset/moonrise/moonset
+// notches, hairline cursor at nowF, big-time HH:MM at bottom-left or
+// bottom-right (6 h cross-fade between homes), four-line status block at
+// bottom-right. accentSkyTrack: false suspends sky-modulation of
+// --type-accent so the gold cursor / colon / DAY headline stay fixed.
+const HorizonFace = {
+  // Phase 20: opt out of sky-altitude modulation for --type-accent.
+  // SkyColorModule reads this on every update() call.
+  accentSkyTrack: false,
+
+  // Diagram constants (1180 x 820 viewBox).
+  _DAY_LEFT:   80,
+  _DAY_RIGHT:  1100,
+  _HORIZON_Y:  440,
+  _ARC_H:      240,
+  _MOON_ARC_H: 240 * 0.62,
+  _PEAK_FAC:   1.6,
+  _SUN_R:      18,
+  _MOON_R:     13,
+
+  _els: null,
+  _staticBuilt: false,
+  _lastMinuteKey: null,
+  _lastHeaderKey: null,      // iso|sunriseF|sunsetF tuple (gates _renderHeader)
+  _lastStatusKey: null,      // compound key gating _renderStatus (per-minute + content)
+  _lastDiagramKey: null,     // sunriseF|sunsetF|moonriseF|moonsetF|alwaysUp|alwaysDown
+  _lastMoonGlyphKey: null,   // illum*1000|waxing (gates crescent path rebuild)
+
+  init(stage) {
+    if (!stage) return;
+
+    // Remove every prior face's DOM so DisplayModule.init() and other faces'
+    // previously-cached handles do not interfere. Same purge pattern as
+    // Editorial / Departures / Mechanical inits.
+    ['time', 'date', 'slot', 'moon-disc'].forEach(function (id) {
+      var el = stage.querySelector('#' + id);
+      if (el) el.remove();
+    });
+    ['mech-stage', 'dep-stage', 'ed-stage', 'hz-stage'].forEach(function (id) {
+      var el = stage.querySelector('#' + id);
+      if (el) el.remove();
+    });
+
+    var root = document.createElement('div');
+    root.id = 'hz-stage';
+
+    // Static SVG. <defs> for gradients + clipPath; six layered groups:
+    // sky-drift (interior - horizon line, ticks, arcs, notches, cursor),
+    // sun-glyph, moon-glyph. Hour labels and arc-terminal labels are HTML
+    // divs absolutely-positioned (their drift rides --date-* / --slot-*).
+    var DAY_LEFT = this._DAY_LEFT;
+    var DAY_RIGHT = this._DAY_RIGHT;
+    var HORIZON_Y = this._HORIZON_Y;
+
+    // Build static ticks markup once.
+    var ticksSvg = '';
+    var dayWidth = DAY_RIGHT - DAY_LEFT;
+    for (var h = 0; h <= 24; h++) {
+      var tx = DAY_LEFT + (h / 24) * dayWidth;
+      var major = (h % 6 === 0);
+      var len = major ? 14 : 6;
+      var sw  = major ? 1.2 : 0.8;
+      var cls = major ? 'hz-tick-major' : 'hz-tick';
+      ticksSvg += '<line class="' + cls + '" x1="' + tx.toFixed(2) +
+                  '" y1="' + HORIZON_Y + '" x2="' + tx.toFixed(2) +
+                  '" y2="' + (HORIZON_Y + len) + '" stroke="rgba(255,255,255,0.20)" stroke-width="' + sw + '"/>';
+    }
+
+    // Hour labels (HTML divs, drift on --date-*).
+    var hourLabelsHtml = '';
+    [0, 6, 12, 18, 24].forEach(function (h) {
+      var lx = DAY_LEFT + (h / 24) * dayWidth;
+      hourLabelsHtml += '<div class="hz-hour-label" style="left:' + lx.toFixed(2) +
+                        'px">' + String(h % 24).padStart(2, '0') + ':00</div>';
+    });
+
+    root.innerHTML =
+      '<div id="hz-header">' +
+        '<span class="hz-header-loc">HORIZON · 49.32°N 123.13°W</span>' +
+        '<span class="hz-header-mid"></span>' +
+        '<span class="hz-header-daylight"></span>' +
+      '</div>' +
+      '<svg id="hz-sky" viewBox="0 0 1180 820" aria-hidden="true">' +
+        '<defs>' +
+          '<radialGradient id="hzSunGlow" cx="50%" cy="50%" r="50%">' +
+            '<stop offset="0%" stop-color="#F4C56C" stop-opacity="0.28"/>' +
+            '<stop offset="60%" stop-color="#F4C56C" stop-opacity="0.06"/>' +
+            '<stop offset="100%" stop-color="#F4C56C" stop-opacity="0"/>' +
+          '</radialGradient>' +
+          '<radialGradient id="hzMoonGlow" cx="50%" cy="50%" r="50%">' +
+            '<stop offset="0%" stop-color="#A8C7FF" stop-opacity="0.18"/>' +
+            '<stop offset="100%" stop-color="#A8C7FF" stop-opacity="0"/>' +
+          '</radialGradient>' +
+          '<clipPath id="hzDiscClip"><rect x="0" y="0" width="1180" height="441"/></clipPath>' +
+        '</defs>' +
+        '<g class="hz-sky-drift">' +
+          // Arcs (paths rebuilt on minute change when diagram key changes).
+          '<path class="hz-sun-arc" d="" stroke="rgba(244,197,108,0.22)" stroke-dasharray="2 7" stroke-width="1" fill="none"/>' +
+          '<path class="hz-moon-arc" d="" stroke="rgba(168,199,255,0.18)" stroke-dasharray="1 6" stroke-width="1" fill="none"/>' +
+          // Horizon line.
+          '<line class="hz-horizon-line" x1="' + (DAY_LEFT - 10) + '" y1="' + HORIZON_Y +
+            '" x2="' + DAY_RIGHT + '" y2="' + HORIZON_Y +
+            '" stroke="rgba(255,255,255,0.22)" stroke-width="1"/>' +
+          // Hour ticks (static for the life of the face).
+          ticksSvg +
+          // Sunrise / sunset notches.
+          '<line class="hz-sr-notch" x1="0" y1="' + (HORIZON_Y - 8) + '" x2="0" y2="' + (HORIZON_Y + 8) +
+            '" stroke="rgba(244,197,108,0.55)" stroke-width="1"/>' +
+          '<line class="hz-ss-notch" x1="0" y1="' + (HORIZON_Y - 8) + '" x2="0" y2="' + (HORIZON_Y + 8) +
+            '" stroke="rgba(244,197,108,0.55)" stroke-width="1"/>' +
+          // Moonrise / moonset notches.
+          '<line class="hz-mr-notch" x1="0" y1="' + (HORIZON_Y - 6) + '" x2="0" y2="' + (HORIZON_Y + 6) +
+            '" stroke="rgba(168,199,255,0.45)" stroke-width="1"/>' +
+          '<line class="hz-ms-notch" x1="0" y1="' + (HORIZON_Y - 6) + '" x2="0" y2="' + (HORIZON_Y + 6) +
+            '" stroke="rgba(168,199,255,0.45)" stroke-width="1"/>' +
+          // Now-hairline cursor (only continuously moving primitive).
+          '<line class="hz-cursor" x1="0" y1="120" x2="0" y2="' + (HORIZON_Y + 28) +
+            '" stroke="rgba(244,197,108,0.45)" stroke-width="1"/>' +
+        '</g>' +
+        // Sun glyph (its own drift group, clipped at horizon).
+        '<g class="hz-sun-glyph" clip-path="url(#hzDiscClip)">' +
+          '<circle class="hz-sun-halo" cx="0" cy="0" r="60" fill="url(#hzSunGlow)"/>' +
+          '<circle class="hz-sun-disc" cx="0" cy="0" r="' + this._SUN_R + '" fill="#F4C56C"/>' +
+          '<line class="hz-sun-drop" x1="0" y1="0" x2="0" y2="' + HORIZON_Y +
+            '" stroke="rgba(244,197,108,0.35)" stroke-width="1" stroke-dasharray="2 4"/>' +
+        '</g>' +
+        // Moon glyph (its own drift group, clipped at horizon).
+        '<g class="hz-moon-glyph" clip-path="url(#hzDiscClip)">' +
+          '<circle class="hz-moon-halo" cx="0" cy="0" r="34" fill="url(#hzMoonGlow)"/>' +
+          '<circle class="hz-moon-disc-outline" cx="0" cy="0" r="' + this._MOON_R +
+            '" fill="rgba(168,199,255,0.10)" stroke="rgba(168,199,255,0.28)" stroke-width="0.6"/>' +
+          '<path class="hz-moon-crescent" d="" fill="rgba(228,236,250,0.92)"/>' +
+        '</g>' +
+      '</svg>' +
+      '<div id="hz-hour-labels">' + hourLabelsHtml + '</div>' +
+      '<div id="hz-arc-labels">' +
+        '<div class="hz-sr-label"></div>' +
+        '<div class="hz-ss-label"></div>' +
+        '<div class="hz-mr-label"></div>' +
+        '<div class="hz-ms-label"></div>' +
+      '</div>' +
+      '<div id="hz-time">' +
+        '<span class="hz-hh">--</span>' +
+        '<span class="hz-colon">:</span>' +
+        '<span class="hz-mm">--</span>' +
+        '<span class="hz-ampm" hidden></span>' +
+      '</div>' +
+      '<div id="hz-status">' +
+        '<div class="hz-status-headline"></div>' +
+        '<div class="hz-status-golden"></div>' +
+        '<div class="hz-status-moon"></div>' +
+        '<div class="hz-status-tide"></div>' +
+        '<div class="hz-status-air"></div>' +
+      '</div>';
+    stage.appendChild(root);
+
+    // Cache element handles. Per-tick code reads from this map; nothing else
+    // queries the DOM after init() completes.
+    this._els = {
+      root: root,
+      header: root.querySelector('#hz-header'),
+      headerLoc: root.querySelector('.hz-header-loc'),
+      headerMid: root.querySelector('.hz-header-mid'),
+      headerDaylight: root.querySelector('.hz-header-daylight'),
+      sky: root.querySelector('#hz-sky'),
+      skyDriftGroup: root.querySelector('.hz-sky-drift'),
+      sunGlyph: root.querySelector('.hz-sun-glyph'),
+      moonGlyph: root.querySelector('.hz-moon-glyph'),
+      sunArc: root.querySelector('.hz-sun-arc'),
+      moonArc: root.querySelector('.hz-moon-arc'),
+      srNotch: root.querySelector('.hz-sr-notch'),
+      ssNotch: root.querySelector('.hz-ss-notch'),
+      mrNotch: root.querySelector('.hz-mr-notch'),
+      msNotch: root.querySelector('.hz-ms-notch'),
+      sunHalo: root.querySelector('.hz-sun-halo'),
+      sunDisc: root.querySelector('.hz-sun-disc'),
+      sunDrop: root.querySelector('.hz-sun-drop'),
+      moonHalo: root.querySelector('.hz-moon-halo'),
+      moonOutline: root.querySelector('.hz-moon-disc-outline'),
+      moonCrescent: root.querySelector('.hz-moon-crescent'),
+      cursor: root.querySelector('.hz-cursor'),
+      srLabel: root.querySelector('.hz-sr-label'),
+      ssLabel: root.querySelector('.hz-ss-label'),
+      mrLabel: root.querySelector('.hz-mr-label'),
+      msLabel: root.querySelector('.hz-ms-label'),
+      time: root.querySelector('#hz-time'),
+      hh: root.querySelector('.hz-hh'),
+      colon: root.querySelector('.hz-colon'),
+      mm: root.querySelector('.hz-mm'),
+      ampm: root.querySelector('.hz-ampm'),
+      statusHeadline: root.querySelector('.hz-status-headline'),
+      statusGolden: root.querySelector('.hz-status-golden'),
+      statusMoon: root.querySelector('.hz-status-moon'),
+      statusTide: root.querySelector('.hz-status-tide'),
+      statusAir: root.querySelector('.hz-status-air')
+    };
+    this._staticBuilt = true;
+    this._lastMinuteKey = null;
+    this._lastHeaderKey = null;
+    this._lastStatusKey = null;
+    this._lastDiagramKey = null;
+    this._lastMoonGlyphKey = null;
+  },
+
+  render(state, tweaks) {
+    if (!this._els) return;
+    var ht = (tweaks && tweaks.byFace && tweaks.byFace.horizon) || {};
+    var timeFormat = ht.timeFormat === '24h' ? '24h' : '12h';
+
+    var sunriseF = this._parseHM(state.sun && state.sun.sunrise);
+    var sunsetF  = this._parseHM(state.sun && state.sun.sunset);
+    var moonriseF = this._parseHM(state.moon && state.moon.moonrise);
+    var moonsetF  = this._parseHM(state.moon && state.moon.moonset);
+    var nowF = this._nowFrac(state.time);
+    var moonAU = !!(state.moon && state.moon.alwaysUp);
+    var moonAD = !!(state.moon && state.moon.alwaysDown);
+    var moonHasTimes = !!(state.moon && state.moon.moonrise && state.moon.moonset);
+
+    this._renderDiagram(state, nowF, sunriseF, sunsetF, moonriseF, moonsetF, moonAU, moonAD, moonHasTimes, timeFormat);
+    this._renderTime(state, timeFormat);
+    this._renderHeader(state, sunriseF, sunsetF);
+    this._renderStatus(state, nowF, sunriseF, sunsetF, timeFormat);
+  },
+
+  teardown() {
+    if (this._els && this._els.root) this._els.root.remove();
+    this._els = null;
+    this._staticBuilt = false;
+    this._lastMinuteKey = null;
+    this._lastHeaderKey = null;
+    this._lastStatusKey = null;
+    this._lastDiagramKey = null;
+    this._lastMoonGlyphKey = null;
+  },
+
+  // ---- helpers ----
+
+  // "HH:MM" or "H:MM AM/PM" -> fractional day [0, 1]. Returns 0 on parse fail.
+  _parseHM(s) {
+    if (!s) return 0;
+    var m = String(s).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+    if (!m) return 0;
+    var h = parseInt(m[1], 10);
+    var mm = parseInt(m[2], 10);
+    var ap = (m[3] || '').toUpperCase();
+    if (ap === 'PM' && h < 12) h += 12;
+    if (ap === 'AM' && h === 12) h = 0;
+    return (h + mm / 60) / 24;
+  },
+
+  // AppState.time.{hours,minutes,seconds,ampm} -> fractional day.
+  _nowFrac(t) {
+    if (!t) return 0;
+    var h = (typeof t.hours === 'number') ? t.hours : 0;
+    if (t.ampm) {
+      if (t.ampm === 'AM') h = (t.hours === 12) ? 0 : t.hours;
+      else h = (t.hours === 12) ? 12 : t.hours + 12;
+    }
+    var m = (typeof t.minutes === 'number') ? t.minutes : 0;
+    var s = (typeof t.seconds === 'number') ? t.seconds : 0;
+    return (h * 3600 + m * 60 + s) / 86400;
+  },
+
+  // 24h h + mm -> { hh, mm, ampm } per timeFormat (12h/24h).
+  _formatHourMinute(h24, mm, timeFormat) {
+    var hh, ampm;
+    if (timeFormat === '12h') {
+      var h12 = h24 % 12;
+      if (h12 === 0) h12 = 12;
+      hh = String(h12);
+      ampm = h24 < 12 ? 'AM' : 'PM';
+    } else {
+      hh = String(h24).padStart(2, '0');
+      ampm = null;
+    }
+    return { hh: hh, mm: String(mm).padStart(2, '0'), ampm: ampm };
+  },
+
+  _resolve24h(state) {
+    var t = state.time || {};
+    var h = (typeof t.hours === 'number') ? t.hours : 0;
+    if (t.ampm) {
+      if (t.ampm === 'AM') h = (t.hours === 12) ? 0 : t.hours;
+      else h = (t.hours === 12) ? 12 : t.hours + 12;
+    }
+    return [h, (typeof t.minutes === 'number') ? t.minutes : 0];
+  },
+
+  // "HH:MM" or "H:MM AM/PM" or ISO 8601 -> face's current timeFormat.
+  _fmtTimeStr(raw, timeFormat) {
+    if (!raw) return '—';
+    var h24 = 0, mm = 0;
+    var s = String(raw);
+    // ISO 8601: contains 'T' between date and time. Parse via Date so the
+    // local-time offset is respected.
+    if (s.indexOf('T') >= 0) {
+      var d = new Date(s);
+      if (isNaN(d.getTime())) return s;
+      h24 = d.getHours();
+      mm = d.getMinutes();
+    } else {
+      var m = s.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+      if (!m) return s;
+      h24 = parseInt(m[1], 10);
+      mm = parseInt(m[2], 10);
+      var ap = (m[3] || '').toUpperCase();
+      if (ap === 'PM' && h24 < 12) h24 += 12;
+      if (ap === 'AM' && h24 === 12) h24 = 0;
+    }
+    var pair = this._formatHourMinute(h24, mm, timeFormat);
+    return pair.ampm ? (pair.hh + ':' + pair.mm + ' ' + pair.ampm) : (pair.hh + ':' + pair.mm);
+  },
+
+  // Phase-correct crescent path (port of chihiro's prototype helper).
+  _moonPhasePath(cx, cy, r, illumFrac, waxing) {
+    var w = Math.abs(1 - 2 * illumFrac);
+    var lit = waxing ? 1 : 0;
+    if (illumFrac <= 0.5) {
+      return 'M ' + cx + ' ' + (cy - r) +
+             ' A ' + r + ' ' + r + ' 0 0 ' + lit + ' ' + cx + ' ' + (cy + r) +
+             ' A ' + (r * w).toFixed(3) + ' ' + r + ' 0 0 ' + (1 - lit) + ' ' + cx + ' ' + (cy - r) + ' Z';
+    }
+    return 'M ' + cx + ' ' + (cy - r) +
+           ' A ' + r + ' ' + r + ' 0 1 ' + lit + ' ' + cx + ' ' + (cy + r) +
+           ' A ' + (r * w).toFixed(3) + ' ' + r + ' 0 0 ' + lit + ' ' + cx + ' ' + (cy - r) + ' Z';
+  },
+
+  // ---- sub-renders ----
+
+  _xAt(frac) {
+    return this._DAY_LEFT + frac * (this._DAY_RIGHT - this._DAY_LEFT);
+  },
+
+  _renderDiagram(state, nowF, sunriseF, sunsetF, moonriseF, moonsetF, moonAU, moonAD, moonHasTimes, timeFormat) {
+    var els = this._els;
+    var HORIZON_Y = this._HORIZON_Y;
+    var ARC_H = this._ARC_H;
+    var MOON_ARC_H = this._MOON_ARC_H;
+    var PEAK_FAC = this._PEAK_FAC;
+    var SUN_R = this._SUN_R;
+    var MOON_R = this._MOON_R;
+
+    // Per-tick: cursor x.
+    var cx = this._xAt(nowF);
+    var cxStr = cx.toFixed(2);
+    els.cursor.setAttribute('x1', cxStr);
+    els.cursor.setAttribute('x2', cxStr);
+
+    // Sun disc traverses sine over the arc (when up).
+    var isDay = sunsetF > sunriseF && nowF >= sunriseF && nowF <= sunsetF;
+    if (isDay) {
+      var p = (nowF - sunriseF) / (sunsetF - sunriseF);
+      var srX = this._xAt(sunriseF);
+      var ssX = this._xAt(sunsetF);
+      var sx = srX + p * (ssX - srX);
+      var sy = HORIZON_Y - Math.sin(p * Math.PI) * ARC_H;
+      var sxStr = sx.toFixed(2);
+      var syStr = sy.toFixed(2);
+      els.sunHalo.setAttribute('cx', sxStr);
+      els.sunHalo.setAttribute('cy', syStr);
+      els.sunDisc.setAttribute('cx', sxStr);
+      els.sunDisc.setAttribute('cy', syStr);
+      els.sunDrop.setAttribute('x1', sxStr);
+      els.sunDrop.setAttribute('x2', sxStr);
+      els.sunDrop.setAttribute('y1', (sy + SUN_R).toFixed(2));
+      els.sunGlyph.removeAttribute('display');
+    } else {
+      els.sunGlyph.setAttribute('display', 'none');
+    }
+
+    // Moon disc traverses sine over the moon arc (when up).
+    var moonUp = false;
+    var mrX = 0, msX = 0;
+    if (!moonAD && moonHasTimes) {
+      mrX = this._xAt(moonriseF);
+      msX = (moonsetF > moonriseF) ? this._xAt(moonsetF) : this._xAt(1);
+      if (moonAU) {
+        moonUp = true;
+      } else if (moonsetF > moonriseF) {
+        moonUp = nowF >= moonriseF && nowF <= moonsetF;
+      } else {
+        moonUp = nowF >= moonriseF || nowF <= moonsetF;
+      }
+    }
+    if (moonAU && !moonHasTimes) {
+      // Treat as moonUp at arc apex (rare at Vancouver lat).
+      moonUp = true;
+    }
+    if (moonUp) {
+      var mx, my;
+      if (moonAU) {
+        // alwaysUp: render disc near arc apex.
+        mx = this._xAt(0.5);
+        my = HORIZON_Y - MOON_ARC_H;
+      } else {
+        var lenF = (moonsetF > moonriseF) ? (moonsetF - moonriseF) : ((1 - moonriseF) + moonsetF);
+        var elapsedF = (nowF >= moonriseF) ? (nowF - moonriseF) : ((1 - moonriseF) + nowF);
+        var pm = lenF > 0 ? elapsedF / lenF : 0;
+        mx = mrX + pm * (msX - mrX);
+        my = HORIZON_Y - Math.sin(pm * Math.PI) * MOON_ARC_H;
+      }
+      var mxStr = mx.toFixed(2);
+      var myStr = my.toFixed(2);
+      els.moonHalo.setAttribute('cx', mxStr);
+      els.moonHalo.setAttribute('cy', myStr);
+      els.moonOutline.setAttribute('cx', mxStr);
+      els.moonOutline.setAttribute('cy', myStr);
+
+      // Phase-correct crescent path. Gated on illum + waxing (changes
+      // smoothly across the lunar month; per-tick rebuild is cheap but
+      // gating saves a string allocation per second).
+      var illum = (state.moon && typeof state.moon.illumination === 'number') ? state.moon.illumination : 0;
+      var phaseV = (state.moon && typeof state.moon.phase === 'number') ? state.moon.phase : 0;
+      var waxing = phaseV < 0.5;
+      var illumClamped = Math.max(0.02, Math.min(0.98, illum));
+      var glyphKey = Math.round(illumClamped * 1000) + '|' + (waxing ? 'w' : 'n');
+      // Crescent must rebuild on cx/cy change too. Combine glyphKey with mx/my.
+      var fullGlyphKey = glyphKey + '|' + mxStr + '|' + myStr;
+      if (fullGlyphKey !== this._lastMoonGlyphKey) {
+        this._lastMoonGlyphKey = fullGlyphKey;
+        els.moonCrescent.setAttribute('d', this._moonPhasePath(mx, my, MOON_R, illumClamped, waxing));
+      }
+      els.moonGlyph.removeAttribute('display');
+    } else {
+      els.moonGlyph.setAttribute('display', 'none');
+      this._lastMoonGlyphKey = null;
+    }
+
+    // Diagram-level rebuilds gated on sunrise/sunset/moonrise/moonset/flag
+    // tuple. Arcs, notches, arc-terminal labels all swap together.
+    var diagramKey = sunriseF.toFixed(5) + '|' + sunsetF.toFixed(5) + '|' +
+                     moonriseF.toFixed(5) + '|' + moonsetF.toFixed(5) + '|' +
+                     (moonAU ? '1' : '0') + (moonAD ? '1' : '0') + (moonHasTimes ? '1' : '0') +
+                     '|' + timeFormat;
+    if (diagramKey === this._lastDiagramKey) return;
+    this._lastDiagramKey = diagramKey;
+
+    // Sun arc (path + sunrise/sunset notches + arc-terminal labels).
+    if (sunsetF > sunriseF && sunsetF > 0) {
+      var srX = this._xAt(sunriseF);
+      var ssX = this._xAt(sunsetF);
+      var sunMidX = (srX + ssX) / 2;
+      var sunPath = 'M ' + srX.toFixed(2) + ' ' + HORIZON_Y +
+                    ' Q ' + sunMidX.toFixed(2) + ' ' + (HORIZON_Y - ARC_H * PEAK_FAC).toFixed(2) +
+                    ' ' + ssX.toFixed(2) + ' ' + HORIZON_Y;
+      els.sunArc.setAttribute('d', sunPath);
+      els.sunArc.removeAttribute('display');
+      els.srNotch.setAttribute('x1', srX.toFixed(2));
+      els.srNotch.setAttribute('x2', srX.toFixed(2));
+      els.srNotch.removeAttribute('display');
+      els.ssNotch.setAttribute('x1', ssX.toFixed(2));
+      els.ssNotch.setAttribute('x2', ssX.toFixed(2));
+      els.ssNotch.removeAttribute('display');
+      els.srLabel.style.left = srX.toFixed(2) + 'px';
+      els.ssLabel.style.left = ssX.toFixed(2) + 'px';
+      els.srLabel.textContent = '☀ ↑ ' + (state.sun && state.sun.sunrise ? this._fmtTimeStr(state.sun.sunrise, timeFormat) : '—');
+      els.ssLabel.textContent = '☀ ↓ ' + (state.sun && state.sun.sunset  ? this._fmtTimeStr(state.sun.sunset,  timeFormat) : '—');
+    } else {
+      els.sunArc.setAttribute('display', 'none');
+      els.srNotch.setAttribute('display', 'none');
+      els.ssNotch.setAttribute('display', 'none');
+      els.srLabel.textContent = '☀ ↑ —';
+      els.ssLabel.textContent = '☀ ↓ —';
+    }
+
+    // Moon arc + moonrise/moonset notches + arc-terminal labels.
+    if (moonHasTimes && !moonAU && !moonAD) {
+      var mrX2 = this._xAt(moonriseF);
+      var msX2 = (moonsetF > moonriseF) ? this._xAt(moonsetF) : this._xAt(1);
+      var moonMidX = (mrX2 + msX2) / 2;
+      var moonPath = 'M ' + mrX2.toFixed(2) + ' ' + HORIZON_Y +
+                     ' Q ' + moonMidX.toFixed(2) + ' ' + (HORIZON_Y - MOON_ARC_H * PEAK_FAC).toFixed(2) +
+                     ' ' + msX2.toFixed(2) + ' ' + HORIZON_Y;
+      els.moonArc.setAttribute('d', moonPath);
+      els.moonArc.removeAttribute('display');
+      els.mrNotch.setAttribute('x1', mrX2.toFixed(2));
+      els.mrNotch.setAttribute('x2', mrX2.toFixed(2));
+      els.mrNotch.removeAttribute('display');
+      els.msNotch.setAttribute('x1', msX2.toFixed(2));
+      els.msNotch.setAttribute('x2', msX2.toFixed(2));
+      els.msNotch.removeAttribute('display');
+      els.mrLabel.style.left = mrX2.toFixed(2) + 'px';
+      els.msLabel.style.left = msX2.toFixed(2) + 'px';
+      els.mrLabel.textContent = '☾ ↑ ' + this._fmtTimeStr(state.moon.moonrise, timeFormat);
+      els.msLabel.textContent = '☾ ↓ ' + this._fmtTimeStr(state.moon.moonset, timeFormat);
+    } else {
+      // alwaysUp / alwaysDown / missing: hide arc + notches, show dashes.
+      els.moonArc.setAttribute('display', 'none');
+      els.mrNotch.setAttribute('display', 'none');
+      els.msNotch.setAttribute('display', 'none');
+      els.mrLabel.textContent = '☾ ↑ —';
+      els.msLabel.textContent = '☾ ↓ —';
+    }
+  },
+
+  _renderTime(state, timeFormat) {
+    var pair = this._resolve24h(state);
+    var fm = this._formatHourMinute(pair[0], pair[1], timeFormat);
+    var key = timeFormat + '|' + fm.hh + ':' + fm.mm + '|' + (fm.ampm || '');
+    if (key === this._lastMinuteKey) return;
+    this._lastMinuteKey = key;
+    var els = this._els;
+    els.hh.textContent = fm.hh;
+    els.mm.textContent = fm.mm;
+    if (fm.ampm) {
+      els.ampm.textContent = fm.ampm;
+      els.ampm.hidden = false;
+    } else {
+      els.ampm.textContent = '';
+      els.ampm.hidden = true;
+    }
+  },
+
+  _renderHeader(state, sunriseF, sunsetF) {
+    // Gate on (iso + sunriseF + sunsetF) tuple so daylight refreshes when
+    // sun data arrives after the first iso-date render. Both are stable for
+    // the day so this is at most one repaint per midnight + one per Sun
+    // poll (every 5 min).
+    var iso = (state.date && state.date.isoDate) || '';
+    var key = iso + '|' + sunriseF.toFixed(5) + '|' + sunsetF.toFixed(5);
+    if (key === this._lastHeaderKey) return;
+    this._lastHeaderKey = key;
+    var els = this._els;
+    var day3 = (state.date && state.date.dayOfWeek)
+      ? state.date.dayOfWeek.slice(0, 3).toUpperCase() : '';
+    var dotChar = '·';
+    var dateStr = iso ? iso.replace(/-/g, '.') : '';
+    els.headerMid.textContent = day3 + (day3 && dateStr ? ' ' + dotChar + ' ' : '') + dateStr;
+    var dayMin = (sunsetF > 0 && sunriseF > 0)
+      ? Math.round((sunsetF - sunriseF) * 24 * 60) : 0;
+    if (dayMin < 0 || !isFinite(dayMin)) dayMin = 0;
+    var dh = Math.floor(dayMin / 60);
+    var dm = dayMin % 60;
+    els.headerDaylight.textContent = 'DAYLIGHT ' + dh + 'H ' + String(dm).padStart(2, '0') + 'M';
+  },
+
+  _renderStatus(state, nowF, sunriseF, sunsetF, timeFormat) {
+    // Gate on minute-level key. Status content changes at most once per
+    // minute (isDay flips, or a weather/tide/aqi poll resolves). Building
+    // 5 strings + 5 DOM comparisons per tick is wasteful; one key check is
+    // enough. The key covers every field that can change the rendered text.
+    var w = state.weather || {};
+    var m = state.moon || {};
+    var ti = state.tide || {};
+    var a = state.aqi || {};
+    var minuteOfDay = Math.floor(nowF * 1440);
+    var isDay = sunsetF > sunriseF && nowF >= sunriseF && nowF <= sunsetF;
+    var statusKey = minuteOfDay + '|' + (isDay ? 1 : 0) + '|' + sunsetF.toFixed(5) +
+                    '|' + (w.condition || '') + '|' + w.tempC +
+                    '|' + (m.phaseName || '') + '|' + m.illumination +
+                    '|' + (ti.type || '') + '|' + ti.heightM + '|' + (ti.time || '') +
+                    '|' + a.value + '|' + (a.band || '') + '|' + timeFormat;
+    if (statusKey === this._lastStatusKey) return;
+    this._lastStatusKey = statusKey;
+
+    var els = this._els;
+
+    // Headline.
+    var cond = w.condition ? String(w.condition).replace(/_/g, ' ') : '—';
+    var temp = (w.tempC !== null && w.tempC !== undefined) ? (w.tempC + '°') : '—';
+    els.statusHeadline.textContent = (isDay ? '☀ DAY' : '☾ NIGHT') + ' · ' + cond + ' ' + temp;
+    els.statusHeadline.classList.toggle('is-day', !!isDay);
+    els.statusHeadline.classList.toggle('is-night', !isDay);
+
+    // Golden hour. Simplified per spec section 6: always show evening
+    // golden hour (sunset - 1h). If sunsetF is invalid, fall back to dash.
+    var golden = '—';
+    if (sunsetF > 0 && sunsetF <= 1) {
+      var goldenF = sunsetF - (1 / 24);
+      if (goldenF < 0) goldenF += 1;
+      var totalMin = Math.round(goldenF * 24 * 60);
+      var gh24 = Math.floor(totalMin / 60) % 24;
+      var gmm = totalMin % 60;
+      var gpair = this._formatHourMinute(gh24, gmm, timeFormat);
+      golden = gpair.ampm ? (gpair.hh + ':' + gpair.mm + ' ' + gpair.ampm) : (gpair.hh + ':' + gpair.mm);
+    }
+    els.statusGolden.textContent = 'GOLDEN HOUR · ' + golden;
+
+    // Moon.
+    var phaseLabel = m.phaseName ? String(m.phaseName).toUpperCase() : '—';
+    var illumPct = (typeof m.illumination === 'number') ? Math.round(m.illumination * 100) : null;
+    els.statusMoon.textContent = 'MOON · ' + (m.phaseName ? (phaseLabel + ' ' + (illumPct !== null ? illumPct + '%' : '—')) : '—');
+
+    // Tide.
+    var tideText = 'TIDE · —';
+    if (ti.type) {
+      var typeLabel = String(ti.type).toUpperCase();
+      var th = (ti.heightM === null || ti.heightM === undefined) ? '—m' : (Number(ti.heightM).toFixed(1) + 'm');
+      var tt = this._fmtTimeStr(ti.time, timeFormat);
+      tideText = 'TIDE · ' + typeLabel + ' ' + th + ' AT ' + tt;
+    }
+    els.statusTide.textContent = tideText;
+
+    // Air.
+    var airText = 'AIR · AQI — —';
+    if (a.value !== null && a.value !== undefined) {
+      var band = a.band ? String(a.band).replace(/_/g, ' ').toUpperCase() : '';
+      var padded = String(a.value).padStart(3, '0');
+      airText = 'AIR · AQI ' + padded + (band ? ' ' + band : '');
+    }
+    els.statusAir.textContent = airText;
+  }
+};
+
 // Phase 16: face registry. Phase 17 registers `mechanical`; future faces
 // register themselves here and use the same init/render/teardown contract.
 // Mechanical and Editorial share the same time-format option set.
@@ -3903,8 +4608,8 @@ const ClockfaceRegistry = {
     calm: CalmFace,
     mechanical: MechanicalFace,       // Phase 17
     departures: DeparturesFace,       // Phase 18
-    editorial:  EditorialFace         // Phase 19
-    // horizon:    HorizonFace        // Phase 20
+    editorial:  EditorialFace,        // Phase 19
+    horizon:    HorizonFace           // Phase 20
   },
 
   resolve(faceId) {
@@ -3930,7 +4635,8 @@ const ClockfaceRegistry = {
         byFace: {
           mechanical: { timeFormat: '24h', previewMode: false },
           departures: { flapBezelOpacity: DEPARTURES_OPACITY_DEFAULT },
-          editorial:  { timeFormat: '24h', previewMode: false }
+          editorial:  { timeFormat: '24h', previewMode: false },
+          horizon:    { timeFormat: '12h', starField: false }
         }
       };
     }
@@ -3967,6 +4673,16 @@ const ClockfaceRegistry = {
     const edTf = FACE_TIME_FORMATS.indexOf(ed.timeFormat) >= 0 ? ed.timeFormat : '24h';
     const edPm = ed.previewMode === true;
     byFace.editorial = { timeFormat: edTf, previewMode: edPm };
+
+    // Phase 20: normalise horizon sub-object. Default timeFormat is '12h'
+    // (chihiro's brief). starField is reserved and accepts only literal
+    // true; everything else coerces to false.
+    const hz = (byFace.horizon && typeof byFace.horizon === 'object')
+      ? byFace.horizon
+      : {};
+    const hzTf = FACE_TIME_FORMATS.indexOf(hz.timeFormat) >= 0 ? hz.timeFormat : '12h';
+    const hzSf = hz.starField === true;
+    byFace.horizon = { timeFormat: hzTf, starField: hzSf };
 
     return { accent: accent, driftIntensity: driftIntensity, byFace: byFace };
   },
@@ -4016,6 +4732,7 @@ window.CalmFace = CalmFace;
 window.MechanicalFace = MechanicalFace;
 window.DeparturesFace = DeparturesFace;   // Phase 18
 window.EditorialFace = EditorialFace;     // Phase 19
+window.HorizonFace = HorizonFace;         // Phase 20
 window.ClockfaceRegistry = ClockfaceRegistry;
 
 (function boot() {
