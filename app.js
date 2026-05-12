@@ -37,9 +37,8 @@ const CONFIG = {
     width: 1180,
     height: 820
   },
-  // Per-element-class drift parameters. Phase 16 active: time, date, slot, moon.
-  // Reserved (unused until 17-20): sun (P20), horizon (P20), departureRow (P18), tickRail (P17).
-  // All seven periods are pairwise coprime.
+  // Per-element-class drift parameters. Periods are pairwise coprime.
+  // Reserved (unused until P19-20): sun (P20), horizon (P20).
   driftClasses: {
     time:         { ampX: 24, ampY: 18, periodSec: 117 },
     date:         { ampX: 12, ampY: 8,  periodSec: 89  },
@@ -49,6 +48,18 @@ const CONFIG = {
     horizon:      { ampX: 18, ampY: 12, periodSec: 101 },
     departureRow: { ampX: 6,  ampY: 4,  periodSec: 61  },
     tickRail:     { ampX: 4,  ampY: 3,  periodSec: 79  }
+  },
+  // Per-face drift channels. DriftEngine.start() reads this instead of a
+  // switch statement, so adding Phase 19/20 faces requires only a new row here.
+  // departureRow* sub-channels share CONFIG.driftClasses.departureRow config
+  // (period 61 s, ampX 6/4) but have independent phase offsets so the five
+  // rows drift without correlation.
+  faceActiveKeys: {
+    calm:       ['time', 'date', 'slot', 'moon'],
+    mechanical: ['time', 'date', 'slot', 'tickRail'],
+    departures: ['time', 'date', 'tickRail',
+                 'departureRow0', 'departureRow1', 'departureRow2',
+                 'departureRow3', 'departureRow4']
   },
   pixelShift: {
     intervalMin: 6,
@@ -96,8 +107,13 @@ const CONFIG = {
     // Phase 17: per-face time homes. When the active face id has an entry
     // here, MacroShifter cycles through this array in place of the global
     // timeHomes table (and targets the face's own time element id).
+    // Phase 18: Departures entries are y-delta pixel pairs ([xDelta, yDelta])
+    // applied to #dep-upper via the --dep-upper-shift-y CSS variable, not
+    // absolute percent coordinates. See MacroShifter._applyTime() for the
+    // dispatch on ACTIVE_FACE_ID === 'departures'.
     timeHomesByFace: {
-      mechanical: [[50, 39], [50, 54]]
+      mechanical: [[50, 39], [50, 54]],
+      departures: [[0, 0], [0, -30]]
     },
     moonIntervalHours: 6,
     moonTransitionSec: 60,
@@ -151,7 +167,13 @@ const AppState = {
     phase: 0,            // 0-1
     illumination: 0,     // 0-1
     terminatorAngle: 0,  // degrees
-    phaseName: ''        // e.g. 'Waxing Gibbous'
+    phaseName: '',       // e.g. 'Waxing Gibbous'
+    // Phase 18/20: moonrise and moonset for the current day (24h string or '').
+    // alwaysUp/alwaysDown true when the moon doesn't cross the horizon today.
+    moonrise: '',
+    moonset: '',
+    alwaysUp: false,
+    alwaysDown: false
   },
   weather: {
     tempC: null,
@@ -1058,10 +1080,25 @@ const MoonModule = {
       AppState.moon.terminatorAngle = Math.round(illum.angle * 180 / Math.PI);
       AppState.moon.phaseName = this._phaseName(illum.phase);
 
+      // Phase 18/20: moonrise and moonset for the current day.
+      // DeparturesFace reads these from AppState rather than calling SunCalc
+      // inline; HorizonFace (Phase 20) also depends on them.
+      const mt = SunCalc.getMoonTimes(now, CONFIG.location.latitude, CONFIG.location.longitude);
+      AppState.moon.moonrise   = (mt.rise && !isNaN(mt.rise.getTime())) ? this._hhmm(mt.rise) : '';
+      AppState.moon.moonset    = (mt.set  && !isNaN(mt.set.getTime()))  ? this._hhmm(mt.set)  : '';
+      AppState.moon.alwaysUp   = mt.alwaysUp   === true;
+      AppState.moon.alwaysDown = mt.alwaysDown === true;
+
       AppState.meta.lastUpdate.moon = now.getTime();
     } catch (e) {
       // Continues on next interval
     }
+  },
+
+  // "HH:MM" from a Date (24h format).
+  _hhmm(date) {
+    return String(date.getHours()).padStart(2, '0') + ':' +
+           String(date.getMinutes()).padStart(2, '0');
   },
 
   renderDisc(el) {
@@ -1275,12 +1312,20 @@ const DriftEngine = {
 
   // Phase offsets: large separations so no two elements share a noise region.
   // Each element gets a unique X offset and Y offset.
+  // Phase 18: the five departureRow* sub-channels share
+  // CONFIG.driftClasses.departureRow (period 61s, ampX 6, ampY 4) and differ
+  // only in phase offset so the rows do not correlate.
   _phaseOffsets: {
-    time:     { x: 0,    y: 100  },
-    date:     { x: 200,  y: 300  },
-    slot:     { x: 400,  y: 500  },
-    moon:     { x: 800,  y: 900  },
-    tickRail: { x: 1000, y: 1100 }
+    time:          { x: 0,    y: 100  },
+    date:          { x: 200,  y: 300  },
+    slot:          { x: 400,  y: 500  },
+    moon:          { x: 800,  y: 900  },
+    tickRail:      { x: 1000, y: 1100 },
+    departureRow0: { x: 1200, y: 1300 },
+    departureRow1: { x: 1400, y: 1500 },
+    departureRow2: { x: 1600, y: 1700 },
+    departureRow3: { x: 1800, y: 1900 },
+    departureRow4: { x: 2000, y: 2100 }
   },
 
   // Phase 16: drift intensity multiplier (read from Tweaks at boot).
@@ -1303,12 +1348,18 @@ const DriftEngine = {
     const dc = CONFIG.driftClasses;
     this._entries = [];
 
-    // Phase 17: activate tickRail for the Mechanical minute-arc.
-    const activeKeys = ['time', 'date', 'slot', 'moon', 'tickRail'];
+    // Face-aware activation: only the channels the active face paints get
+    // rAF writes. Table lives in CONFIG.faceActiveKeys; adding Phase 19/20
+    // faces requires only a new entry there, not a code change here.
+    const activeKeys = CONFIG.faceActiveKeys[ACTIVE_FACE_ID]
+                    || CONFIG.faceActiveKeys.calm;
 
     for (let i = 0; i < activeKeys.length; i++) {
       const key = activeKeys[i];
-      const cfg = dc[key];
+      // Resolve the class config: departureRow* sub-channels share the
+      // 'departureRow' class config; everything else maps directly by key.
+      const classKey = key.indexOf('departureRow') === 0 ? 'departureRow' : key;
+      const cfg = dc[classKey];
       const phase = this._phaseOffsets[key];
       this._entries.push({
         cssPrefix: key,
@@ -1333,11 +1384,17 @@ const DriftEngine = {
   // Approximate element sizes (half-width, half-height) for viewport clamping.
   // Used to keep elements fully on-screen with a 10px inset margin.
   _elementSizes: {
-    time:     { hw: 400, hh: 80 },
-    date:     { hw: 160, hh: 28 },
-    slot:     { hw: 210, hh: 28 },
-    moon:     { hw: 71,  hh: 71 },
-    tickRail: { hw: 510, hh: 4  }
+    time:          { hw: 400, hh: 80 },
+    date:          { hw: 160, hh: 28 },
+    slot:          { hw: 210, hh: 28 },
+    moon:          { hw: 71,  hh: 71 },
+    tickRail:      { hw: 510, hh: 4  },
+    // Phase 18: row half-extents (1020 px wide; ~30 px tall row content)
+    departureRow0: { hw: 510, hh: 18 },
+    departureRow1: { hw: 510, hh: 18 },
+    departureRow2: { hw: 510, hh: 18 },
+    departureRow3: { hw: 510, hh: 18 },
+    departureRow4: { hw: 510, hh: 18 }
   },
 
   _loop() {
@@ -1393,11 +1450,17 @@ const DriftEngine = {
   // CONFIG.macroShift carries the full list of homes to cycle through; these
   // carry only the current active position (and include date/slot, which never shift).
   _anchorPercents: {
-    time:     { x: 50, y: 44 },
-    date:     { x: 50, y: 66 },
-    slot:     { x: 50, y: 84 },
-    moon:     { x: 84, y: 12 },
-    tickRail: { x: 50, y: 32 }
+    time:          { x: 50, y: 44 },
+    date:          { x: 50, y: 66 },
+    slot:          { x: 50, y: 84 },
+    moon:          { x: 84, y: 12 },
+    tickRail:      { x: 50, y: 32 },
+    // Phase 18: per-row anchors (board y=340..520, x centred on stage)
+    departureRow0: { x: 50, y: 44 },
+    departureRow1: { x: 50, y: 49 },
+    departureRow2: { x: 50, y: 54 },
+    departureRow3: { x: 50, y: 59 },
+    departureRow4: { x: 50, y: 63 }
   },
 
   _resolveAnchorX(cssPrefix, vw) {
@@ -1509,13 +1572,23 @@ const MacroShifter = {
   },
 
   _applyTime(withTransition) {
+    // Phase 18: Departures relocates the upper band as a group via a CSS
+    // variable, not absolute position. The timeHomesByFace.departures table
+    // is interpreted as [xDelta, yDelta] pixel pairs; xDelta is unused.
+    // The 60s ease-in-out transition is carried on #dep-upper (style.css).
+    if (ACTIVE_FACE_ID === 'departures') {
+      var homes = CONFIG.macroShift.timeHomesByFace.departures || [[0, 0]];
+      var depHome = homes[this._timeIndex % homes.length] || homes[0];
+      document.documentElement.style.setProperty('--dep-upper-shift-y', depHome[1] + 'px');
+      return;
+    }
     var home = this._timeHomes()[this._timeIndex];
     this._applyHome(this._timeElementId(), home, CONFIG.macroShift.timeTransitionSec, 'time', withTransition);
   },
 
   _applyMoon(withTransition) {
-    // Phase 17: Mechanical face has no moon element; skip the moon shift.
-    if (ACTIVE_FACE_ID === 'mechanical') return;
+    // Mechanical and Departures have no moon disc; skip the moon shift.
+    if (ACTIVE_FACE_ID === 'mechanical' || ACTIVE_FACE_ID === 'departures') return;
     var home = CONFIG.macroShift.moonHomes[this._moonIndex];
     this._applyHome('moon-disc', home, CONFIG.macroShift.moonTransitionSec, 'moon', withTransition);
   }
@@ -1608,7 +1681,7 @@ const KineticType = {
     }
   },
 
-  animate(el, newString) {
+  animate(el, newString, staggerMs) {
     const oldChars = el.querySelectorAll('.char');
     const oldLen = oldChars.length;
     const newLen = newString.length;
@@ -1628,7 +1701,7 @@ const KineticType = {
     }
 
     const spans = el.querySelectorAll('.char');
-    const stagger = CONFIG.rotation.cascadeStaggerMs;
+    const stagger = (staggerMs !== undefined) ? staggerMs : CONFIG.rotation.cascadeStaggerMs;
 
     for (let i = 0; i < newLen; i++) {
       const span = spans[i];
@@ -1886,8 +1959,11 @@ const VersionOverlay = {
   init() {
     // Phase 17: gesture surface differs per face. Calm uses the moon disc;
     // Mechanical has no moon, so the picker entry attaches to the time
-    // numerals (#mech-time). Phases 18-20 will extend this dispatch.
-    const surfaceId = ACTIVE_FACE_ID === 'mechanical' ? 'mech-time' : 'moon-disc';
+    // numerals (#mech-time). Phase 18: Departures attaches to #dep-time.
+    let surfaceId;
+    if (ACTIVE_FACE_ID === 'mechanical') surfaceId = 'mech-time';
+    else if (ACTIVE_FACE_ID === 'departures') surfaceId = 'dep-time';
+    else surfaceId = 'moon-disc';
     const surface = document.getElementById(surfaceId);
     if (!surface) return;
 
@@ -2551,15 +2627,624 @@ const MechanicalFace = {
   }
 };
 
+// Phase 18: Departures face. Third face in V1. Five rows of event candidates
+// cycle on a 45 s cadence with a per-character split-flap cascade via
+// KineticType. Flap-pair headline time top-left; status block top-right;
+// header and footer chrome strips above and below. Builds its own DOM subtree
+// inside #stage in init(); removes Calm-shaped nodes first so DisplayModule
+// does not bind to dead handles. All inner state is local; no AppState writes.
+const DeparturesFace = {
+  _els: null,
+  _lastRowEpoch: -1,
+  _lastRowHashes: ['', '', '', '', ''],
+  _lastColumnPermIndex: -1,
+  _lastMinuteKey: null,
+  _lastIsoDate: null,
+  _lastStatusHashes: ['', '', ''],
+  _lastFooterHashes: ['', '', ''],
+  _rowCandidates: null,        // cached row candidate set (recomputed per epoch)
+
+  // 6 h column-width reflow permutations (Section 13).
+  _COLUMN_PERMS: [
+    '110px 110px 1fr 200px',
+    '120px 100px 1fr 210px',
+    '100px 120px 1fr 190px'
+  ],
+
+  _MOON_ABBREV: {
+    'New Moon': 'NEW',
+    'Waxing Crescent': 'WAX CRES',
+    'First Quarter': 'FIRST Q',
+    'Waxing Gibbous': 'WAX GIB',
+    'Full Moon': 'FULL',
+    'Waning Gibbous': 'WAN GIB',
+    'Last Quarter': 'LAST Q',
+    'Waning Crescent': 'WAN CRES'
+  },
+
+  // -- Lifecycle --
+
+  init(stage) {
+    if (!stage) return;
+    // Remove Calm-shaped DOM so DisplayModule.init() does not cache handles
+    // to nodes Departures does not paint. Mirrors MechanicalFace's pattern.
+    ['time', 'date', 'slot', 'moon-disc'].forEach(function (id) {
+      var el = stage.querySelector('#' + id);
+      if (el) el.remove();
+    });
+    // Remove any other face subtree, in case of double-init.
+    ['mech-stage', 'dep-stage'].forEach(function (id) {
+      var el = stage.querySelector('#' + id);
+      if (el) el.remove();
+    });
+
+    var rowsHtml = '';
+    for (var i = 0; i < 5; i++) {
+      rowsHtml +=
+        '<div class="dep-row" data-row="' + i + '">' +
+          '<span class="dep-time-cell"></span>' +
+          '<span class="dep-event-cell"></span>' +
+          '<span class="dep-detail-cell"></span>' +
+          '<span class="dep-status-cell"></span>' +
+        '</div>';
+    }
+
+    var root = document.createElement('div');
+    root.id = 'dep-stage';
+    root.innerHTML =
+      '<div id="dep-upper">' +
+        '<div id="dep-header">' +
+          '<span class="dep-header-left">SOLARI · DEPARTURE BOARD</span>' +
+          '<span class="dep-header-center">VANCOUVER · POINT ATKINSON</span>' +
+          '<span class="dep-header-right"></span>' +
+        '</div>' +
+        '<div id="dep-time">' +
+          '<span class="dep-flap-group">' +
+            '<span class="dep-flap-char">-</span><span class="dep-flap-char">-</span>' +
+          '</span>' +
+          '<span class="dep-colon">:</span>' +
+          '<span class="dep-flap-group">' +
+            '<span class="dep-flap-char">-</span><span class="dep-flap-char">-</span>' +
+          '</span>' +
+        '</div>' +
+        '<div id="dep-status">' +
+          '<div class="dep-status-now">NOW · ---</div>' +
+          '<div class="dep-status-weather">---</div>' +
+          '<div class="dep-status-next">---</div>' +
+        '</div>' +
+      '</div>' +
+      '<div id="dep-board-header">' +
+        '<span>TIME</span><span>EVENT</span><span>DETAIL</span><span>STATUS</span>' +
+      '</div>' +
+      '<div id="dep-board">' + rowsHtml + '</div>' +
+      '<div id="dep-footer">' +
+        '<span class="dep-footer-weather">---</span>' +
+        '<span class="dep-footer-air">---</span>' +
+        '<span class="dep-footer-alerts">---</span>' +
+      '</div>';
+    stage.appendChild(root);
+
+    this._els = {
+      root: root,
+      upper: root.querySelector('#dep-upper'),
+      header: root.querySelector('#dep-header'),
+      headerRight: root.querySelector('.dep-header-right'),
+      time: root.querySelector('#dep-time'),
+      flapChars: Array.from(root.querySelectorAll('.dep-flap-char')),
+      statusNow: root.querySelector('.dep-status-now'),
+      statusWeather: root.querySelector('.dep-status-weather'),
+      statusNext: root.querySelector('.dep-status-next'),
+      boardHeader: root.querySelector('#dep-board-header'),
+      board: root.querySelector('#dep-board'),
+      rows: Array.from(root.querySelectorAll('.dep-row')),
+      footerWeather: root.querySelector('.dep-footer-weather'),
+      footerAir: root.querySelector('.dep-footer-air'),
+      footerAlerts: root.querySelector('.dep-footer-alerts')
+    };
+    // Initialise per-flap-char span (for per-character cascade) with a single
+    // .char child so KineticType.animate has something to drive.
+    this._els.flapChars.forEach(function (span) {
+      span.innerHTML = '<span class="char">-</span>';
+    });
+    // Initialise each row cell with a single .char child for KineticType.
+    this._els.rows.forEach(function (row) {
+      var cells = row.querySelectorAll('span');
+      cells.forEach(function (cell) {
+        cell.innerHTML = '<span class="char">—</span>';
+      });
+    });
+
+    this._lastRowEpoch = -1;
+    this._lastRowHashes = ['', '', '', '', ''];
+    this._lastColumnPermIndex = -1;
+    this._lastMinuteKey = null;
+    this._lastIsoDate = null;
+    this._lastStatusHashes = ['', '', ''];
+    this._lastFooterHashes = ['', '', ''];
+    this._rowCandidates = null;
+  },
+
+  render(state, _tweaks) {
+    if (!this._els) return;
+    this._renderHeader(state);
+    this._renderTime(state);
+    this._renderStatus(state);
+    this._renderBoard(state);
+    this._renderFooter(state);
+    this._applyMacroShifts(state);
+  },
+
+  teardown() {
+    if (this._els && this._els.root) this._els.root.remove();
+    this._els = null;
+    this._lastRowEpoch = -1;
+    this._lastRowHashes = ['', '', '', '', ''];
+    this._lastColumnPermIndex = -1;
+    this._lastMinuteKey = null;
+    this._lastIsoDate = null;
+    this._lastStatusHashes = ['', '', ''];
+    this._lastFooterHashes = ['', '', ''];
+    this._rowCandidates = null;
+  },
+
+  // -- Helpers: time + date formatting --
+
+  // Convert AppState.time (which may be 12h with ampm) into [h24, mm].
+  _resolve24h(state) {
+    var t = state.time || {};
+    var h = (typeof t.hours === 'number') ? t.hours : 0;
+    if (t.ampm) {
+      if (t.ampm === 'AM') h = (t.hours === 12) ? 0 : t.hours;
+      else h = (t.hours === 12) ? 12 : t.hours + 12;
+    }
+    return [h, (typeof t.minutes === 'number') ? t.minutes : 0];
+  },
+
+  // "HH:MM" 24h from a Date.
+  _hhmm(date) {
+    return String(date.getHours()).padStart(2, '0') + ':' +
+           String(date.getMinutes()).padStart(2, '0');
+  },
+
+  // Parse a stored time string ("6:14 AM", "18:14", ISO) anchored to today.
+  // Returns a Date or null.
+  _parseClockOrIso(raw) {
+    if (!raw) return null;
+    // ISO 8601 with 'T'
+    if (raw.indexOf('T') >= 0) {
+      var d = new Date(raw);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    var m = /^\s*(\d{1,2}):(\d{2})(?:\s*(AM|PM))?\s*$/i.exec(raw);
+    if (!m) return null;
+    var hh = parseInt(m[1], 10);
+    var mm = parseInt(m[2], 10);
+    if (m[3]) {
+      var ap = m[3].toUpperCase();
+      if (ap === 'PM' && hh < 12) hh += 12;
+      if (ap === 'AM' && hh === 12) hh = 0;
+    }
+    var now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
+  },
+
+  // Status string for a future timestamp; "PAST" if past with > 5 min grace.
+  // Returns { status, accent, isPast }.
+  _statusFor(ts, now) {
+    var delta = ts - now;
+    var graceMs = 5 * 60 * 1000;
+    if (delta < -graceMs) return { status: 'PAST', accent: false, isPast: true };
+    if (delta < 60 * 1000) return { status: 'ARRIVING', accent: true, isPast: false };
+    var mins = Math.round(delta / 60000);
+    var h = Math.floor(mins / 60);
+    var m = mins % 60;
+    var accent = h === 0;        // < 1 hour away
+    return {
+      status: 'IN ' + h + 'H ' + String(m).padStart(2, '0') + 'M',
+      accent: accent,
+      isPast: false
+    };
+  },
+
+  // -- Repaint gates --
+
+  _renderHeader(state) {
+    var iso = state.date && state.date.isoDate || '';
+    if (iso === this._lastIsoDate) return;
+    this._lastIsoDate = iso;
+    var dow = (state.date && state.date.dayOfWeek) ? state.date.dayOfWeek.slice(0, 3).toUpperCase() : '---';
+    var isoDot = iso ? iso.replace(/-/g, '.') : '----.--.--';
+    this._els.headerRight.textContent = dow + ' ' + isoDot + ' · LOCAL';
+  },
+
+  _renderTime(state) {
+    var pair = this._resolve24h(state);
+    var hh = String(pair[0]).padStart(2, '0');
+    var mm = String(pair[1]).padStart(2, '0');
+    var key = hh + ':' + mm;
+    if (key === this._lastMinuteKey) return;
+    this._lastMinuteKey = key;
+    var chars = [hh.charAt(0), hh.charAt(1), mm.charAt(0), mm.charAt(1)];
+    var spans = this._els.flapChars;
+    for (var i = 0; i < 4; i++) {
+      this._cascadeCell(spans[i], chars[i]);
+    }
+  },
+
+  // Formats weather as "PARTLY CLOUDY +12°" or '—' when data is absent.
+  // prefix is prepended when provided (e.g. "WEATHER · ").
+  _formatWeatherStr(state, prefix) {
+    var w = state.weather || {};
+    var p = prefix || '';
+    if (w.condition == null || w.tempC == null) return p ? p + '—' : '—';
+    var cond = String(w.condition).replace(/_/g, ' ').toUpperCase();
+    var sign = w.tempC >= 0 ? '+' : '';
+    return p + cond + ' ' + sign + w.tempC + '°';
+  },
+
+  _renderStatus(state) {
+    var now = new Date();
+    var dow = (state.date && state.date.dayOfWeek) ? state.date.dayOfWeek.slice(0, 3).toUpperCase() : '---';
+    var nowLine = 'NOW · ' + dow;
+    var weatherLine = this._formatWeatherStr(state);
+
+    var nextLine = this._nextEventCountdown(state, now);
+
+    var lines = [nowLine, weatherLine, nextLine];
+    var els = [this._els.statusNow, this._els.statusWeather, this._els.statusNext];
+    for (var i = 0; i < 3; i++) {
+      if (lines[i] !== this._lastStatusHashes[i]) {
+        this._lastStatusHashes[i] = lines[i];
+        els[i].textContent = lines[i];
+      }
+    }
+  },
+
+  _nextEventCountdown(state, now) {
+    // Show whichever of the next two sun events (sunrise/sunset) is sooner.
+    var sr = this._parseClockOrIso(state.sun && state.sun.sunrise);
+    var ss = this._parseClockOrIso(state.sun && state.sun.sunset);
+    var target = null;
+    var label = null;
+    if (sr && sr.getTime() > now.getTime()) { target = sr; label = 'SUNRISE'; }
+    if (ss && ss.getTime() > now.getTime() && (!target || ss.getTime() < target.getTime())) {
+      target = ss; label = 'SUNSET';
+    }
+    if (!target) {
+      // After today's sunset, show tomorrow's sunrise time.
+      if (sr) {
+        target = new Date(sr.getTime() + 24 * 60 * 60 * 1000);
+        label = 'SUNRISE';
+      } else {
+        return '—';
+      }
+    }
+    var deltaMin = Math.max(0, Math.round((target - now) / 60000));
+    var h = Math.floor(deltaMin / 60);
+    var m = deltaMin % 60;
+    return label + ' IN ' + h + 'H ' + String(m).padStart(2, '0') + 'M';
+  },
+
+  _renderFooter(state) {
+    var footerWeather = this._formatWeatherStr(state, 'WEATHER · ');
+
+    var a = state.aqi || {};
+    var footerAir;
+    if (a.value === null || a.value === undefined) {
+      footerAir = 'AIR · —';
+    } else {
+      var band = (a.band || '').toString().replace(/_/g, ' ').toUpperCase();
+      footerAir = 'AIR · ' + band + ' (' + a.value + ')';
+    }
+
+    var preempt = state.alertPreempt;
+    var footerAlerts = preempt ? '1 ALERT' : 'NO ALERTS';
+
+    var values = [footerWeather, footerAir, footerAlerts];
+    var els = [this._els.footerWeather, this._els.footerAir, this._els.footerAlerts];
+    for (var i = 0; i < 3; i++) {
+      if (values[i] !== this._lastFooterHashes[i]) {
+        this._lastFooterHashes[i] = values[i];
+        els[i].textContent = values[i];
+      }
+    }
+  },
+
+  _renderBoard(state) {
+    var now = new Date();
+    var epoch = Math.floor(now.getTime() / 45000);
+    if (epoch !== this._lastRowEpoch || this._rowCandidates === null) {
+      this._lastRowEpoch = epoch;
+      this._rowCandidates = this._buildRows(state, now);
+    } else {
+      // Within an epoch, recompute status countdowns (which depend on now)
+      // on the cached candidate set; other fields are stable.
+      this._refreshRowStatuses(now);
+    }
+
+    for (var i = 0; i < 5; i++) {
+      this._renderRow(i, this._rowCandidates[i]);
+    }
+  },
+
+  _buildRows(state, now) {
+    var candidates = [];
+
+    // Sun: next sun event (sunrise or sunset)
+    var sr = this._parseClockOrIso(state.sun && state.sun.sunrise);
+    var ss = this._parseClockOrIso(state.sun && state.sun.sunset);
+    if (sr) {
+      candidates.push(this._sunRow(sr, 'SUNRISE', now));
+    }
+    if (ss) {
+      candidates.push(this._sunRow(ss, 'SUNSET', now));
+    }
+    // Tomorrow's sunrise (always include so the list never starves)
+    if (sr) {
+      var tomorrowSr = new Date(sr.getTime() + 24 * 60 * 60 * 1000);
+      candidates.push({
+        time: this._hhmm(tomorrowSr),
+        event: 'SUN',
+        detail: 'SUNRISE · CIVIL DAWN',
+        status: 'TOMORROW',
+        accent: false,
+        isPast: false,
+        timestamp: tomorrowSr.getTime()
+      });
+    }
+
+    // Tide
+    var tide = state.tide;
+    if (tide && tide.type && tide.time) {
+      var tideDate = this._parseClockOrIso(tide.time);
+      if (tideDate) {
+        var label = tide.type === 'high' ? 'HIGH' : 'LOW';
+        var heightStr = (tide.heightM !== null && tide.heightM !== undefined)
+          ? Number(tide.heightM).toFixed(1) + 'M' : '—M';
+        var s = this._statusFor(tideDate.getTime(), now.getTime());
+        candidates.push({
+          time: this._hhmm(tideDate),
+          event: 'TIDE',
+          detail: label + ' ' + heightStr + ' · POINT ATKINSON',
+          status: s.status,
+          accent: s.accent,
+          isPast: s.isPast,
+          timestamp: tideDate.getTime(),
+          detailAccentWord: label
+        });
+      }
+    }
+
+    // Moon rise/set from AppState.moon (populated by MoonModule.update()).
+    // MoonModule already calls SunCalc.getMoonTimes on its 6h cadence;
+    // reading from state avoids a duplicate SunCalc call every 45s here.
+    var moonM = state.moon || {};
+    var phaseName = moonM.phaseName || '';
+    var abbrev = this._MOON_ABBREV[phaseName] || (phaseName ? phaseName.slice(0, 8).toUpperCase() : '—');
+    var pct = Math.round((moonM.illumination || 0) * 100);
+    var moonDetail = abbrev + ' · ' + pct + '%';
+    if (moonM.moonrise) {
+      var riseDate = this._parseClockOrIso(moonM.moonrise);
+      if (riseDate) {
+        var riseTs = riseDate.getTime();
+        var sRise = this._statusFor(riseTs, now.getTime());
+        candidates.push({
+          time: this._hhmm(riseDate),
+          event: 'MOON',
+          detail: moonDetail,
+          status: sRise.isPast ? 'PAST' : (sRise.accent ? 'RISING' : sRise.status),
+          accent: sRise.accent,
+          isPast: sRise.isPast,
+          timestamp: riseTs
+        });
+      }
+    }
+    if (moonM.moonset) {
+      var setDate = this._parseClockOrIso(moonM.moonset);
+      if (setDate) {
+        var setTs = setDate.getTime();
+        var sSet = this._statusFor(setTs, now.getTime());
+        candidates.push({
+          time: this._hhmm(setDate),
+          event: 'MOON',
+          detail: moonDetail,
+          status: sSet.isPast ? 'PAST' : (sSet.accent ? 'SETTING' : sSet.status),
+          accent: sSet.accent,
+          isPast: sSet.isPast,
+          timestamp: setTs
+        });
+      }
+    }
+
+    // Almanac
+    var a = state.almanac;
+    if (a && a.name && a.date) {
+      var almanacDate = new Date(a.date + 'T00:00:00');
+      if (!isNaN(almanacDate.getTime())) {
+        var status;
+        if (a.daysAway === 0) status = 'TONIGHT';
+        else if (a.daysAway === 1) status = 'TOMORROW';
+        else status = 'IN ' + a.daysAway + 'D';
+        // Event kind heuristic: name containing METEOR/SHOWER -> METEOR;
+        // FULL/NEW MOON already covered by moonrise/set; eclipse -> ECLIPSE; else ALMANAC.
+        var up = a.name.toUpperCase();
+        var event = 'ALMANAC';
+        if (up.indexOf('METEOR') >= 0 || up.indexOf('SHOWER') >= 0) event = 'METEOR';
+        else if (up.indexOf('ECLIPSE') >= 0) event = 'ECLIPSE';
+        else if (up.indexOf('FULL MOON') >= 0 || up.indexOf('NEW MOON') >= 0) event = 'MOON';
+        candidates.push({
+          time: '--:--',
+          event: event,
+          detail: up + ' · PEAK ' + a.date,
+          status: status,
+          accent: false,
+          isPast: false,
+          timestamp: almanacDate.getTime()
+        });
+      }
+    }
+
+    // Sort by timestamp ascending; take first 5 (past rows surface at top).
+    candidates.sort(function (a, b) { return a.timestamp - b.timestamp; });
+    var rows = candidates.slice(0, 5);
+
+    // Alert preemption: row 0 becomes the alert; shift the rest down.
+    if (state.alertPreempt) {
+      var alertRow = {
+        time: this._hhmm(now),
+        event: 'ALERT',
+        detail: String(state.alertPreempt),
+        status: 'ACTIVE',
+        accent: true,
+        isPast: false,
+        timestamp: now.getTime()
+      };
+      rows = [alertRow].concat(rows).slice(0, 5);
+    }
+
+    // Pad with placeholder rows so the board layout stays stable.
+    while (rows.length < 5) {
+      rows.push({
+        time: '—',
+        event: '—',
+        detail: '—',
+        status: '—',
+        accent: false,
+        isPast: false,
+        timestamp: Number.MAX_SAFE_INTEGER,
+        placeholder: true
+      });
+    }
+
+    return rows;
+  },
+
+  _sunRow(date, label, now) {
+    var s = this._statusFor(date.getTime(), now.getTime());
+    return {
+      time: this._hhmm(date),
+      event: 'SUN',
+      detail: 'GOLDEN HOUR · ' + label,
+      status: s.status,
+      accent: s.accent,
+      isPast: s.isPast,
+      timestamp: date.getTime(),
+      detailAccentWord: label === 'SUNRISE' ? 'SUNRISE' : 'SUNSET'
+    };
+  },
+
+  _refreshRowStatuses(now) {
+    if (!this._rowCandidates) return;
+    var nowMs = now.getTime();
+    for (var i = 0; i < this._rowCandidates.length; i++) {
+      var row = this._rowCandidates[i];
+      if (!row || row.placeholder) continue;
+      // Skip rows whose status is a fixed label that doesn't depend on now.
+      // 'TOMORROW'/'TONIGHT' are calendar labels; 'IN 3D' is an almanac
+      // days-away label. Time-based countdowns ('IN 5H 12M', 'ARRIVING',
+      // 'RISING', 'SETTING', 'PAST') must be recomputed each tick.
+      if (row.status === 'TOMORROW' || row.status === 'TONIGHT' ||
+          (row.status && row.status.startsWith('IN ') && row.status.endsWith('D'))) {
+        continue;
+      }
+      var s = this._statusFor(row.timestamp, nowMs);
+      row.status = s.status;
+      row.accent = s.accent;
+      row.isPast = s.isPast;
+    }
+  },
+
+  _renderRow(idx, row) {
+    var el = this._els.rows[idx];
+    if (!el || !row) return;
+    var hash = row.time + '|' + row.event + '|' + row.detail + '|' + row.status + '|' + (row.accent ? '1' : '0') + '|' + (row.isPast ? '1' : '0');
+    if (hash === this._lastRowHashes[idx]) return;
+    this._lastRowHashes[idx] = hash;
+
+    // Class toggles
+    el.classList.toggle('is-past', !!row.isPast);
+    el.classList.toggle('is-imminent', !!row.accent && !row.isPast);
+
+    var cells = el.children;
+    var statusText = row.isPast ? 'PAST' : row.status;
+    this._cascadeCell(cells[0], row.time);
+    this._cascadeCell(cells[1], row.event);
+    this._renderDetailCell(cells[2], row);
+    this._cascadeCell(cells[3], statusText);
+  },
+
+  _renderDetailCell(cell, row) {
+    // Detail strings render as a flat per-character cascade. The leading
+    // accent-word emphasis described in the spec (Section 8) is a "may"
+    // option and is deferred; the imminent-row accent already lights up
+    // the TIME and STATUS columns via .is-imminent rules. KineticType
+    // operates on .char spans so injecting a nested .dep-detail-accent
+    // span would conflict with the cascade machinery.
+    this._cascadeCell(cell, row.detail || '');
+  },
+
+  // Per-character split-flap cascade. Departures uses 110ms stagger (spec
+  // Section 2) vs the global 70ms used by the rotator slot.
+  _STAGGER_MS: 110,
+
+  _cascadeCell(cell, text) {
+    if (!cell) return;
+    var current = cell.textContent || '';
+    if (current === text) return;
+    // First paint: seed via create() so KineticType.animate has spans to drive.
+    if (!cell.querySelector('.char')) {
+      cell.textContent = text;
+      KineticType.create(cell);
+      return;
+    }
+    KineticType.animate(cell, text, this._STAGGER_MS);
+  },
+
+  // -- Macro shifts --
+  // Upper-band 3h y-delta is owned by MacroShifter (runs on a timer with CSS
+  // transition, writing --dep-upper-shift-y via _applyTime). This method owns
+  // only the 6h column-width reflow, which is content-grid-driven and not
+  // an absolute-position shift, so it lives here instead of MacroShifter.
+
+  _applyMacroShifts(state) {
+    var t = state.time || {};
+    var h24 = this._resolve24h(state)[0];
+    var h = h24
+          + ((typeof t.minutes === 'number') ? t.minutes : 0) / 60;
+
+    var colIdx = Math.floor(h / 6) % 3;
+    if (colIdx !== this._lastColumnPermIndex) {
+      var perm = this._COLUMN_PERMS[colIdx];
+      this._els.boardHeader.style.gridTemplateColumns = perm;
+      for (var i = 0; i < this._els.rows.length; i++) {
+        this._els.rows[i].style.gridTemplateColumns = perm;
+      }
+      this._lastColumnPermIndex = colIdx;
+    }
+  }
+};
+
 // Phase 16: face registry. Phase 17 registers `mechanical`; future faces
 // register themselves here and use the same init/render/teardown contract.
 const MECHANICAL_TIME_FORMATS = ['24h', '12h'];
 
+// Phase 18: Departures opacity tweak clamp range.
+const DEPARTURES_OPACITY_MIN = 0.0;
+const DEPARTURES_OPACITY_MAX = 0.4;
+const DEPARTURES_OPACITY_DEFAULT = 0.22;
+
+function _clampDeparturesOpacity(v) {
+  if (typeof v !== 'number' || !isFinite(v)) return DEPARTURES_OPACITY_DEFAULT;
+  if (v < DEPARTURES_OPACITY_MIN) return DEPARTURES_OPACITY_MIN;
+  if (v > DEPARTURES_OPACITY_MAX) return DEPARTURES_OPACITY_MAX;
+  return v;
+}
+
 const ClockfaceRegistry = {
   faces: {
     calm: CalmFace,
-    mechanical: MechanicalFace        // Phase 17
-    // departures: DeparturesFace,    // Phase 18
+    mechanical: MechanicalFace,       // Phase 17
+    departures: DeparturesFace        // Phase 18
     // editorial:  EditorialFace,     // Phase 19
     // horizon:    HorizonFace        // Phase 20
   },
@@ -2584,7 +3269,10 @@ const ClockfaceRegistry = {
       return {
         accent: def.accent,
         driftIntensity: def.driftIntensity,
-        byFace: { mechanical: { timeFormat: '24h', previewMode: false } }
+        byFace: {
+          mechanical: { timeFormat: '24h', previewMode: false },
+          departures: { flapBezelOpacity: DEPARTURES_OPACITY_DEFAULT }
+        }
       };
     }
     const accent = ACCENT_PALETTE[parsed.accent] ? parsed.accent : def.accent;
@@ -2602,6 +3290,15 @@ const ClockfaceRegistry = {
     const pm = mech.previewMode === true;
     byFace.mechanical = { timeFormat: tf, previewMode: pm };
 
+    // Phase 18: normalise departures sub-object. flapBezelOpacity clamped
+    // to [0.0, 0.4]; NaN / non-numeric / missing -> 0.22 default.
+    const dep = (byFace.departures && typeof byFace.departures === 'object')
+      ? byFace.departures
+      : {};
+    byFace.departures = {
+      flapBezelOpacity: _clampDeparturesOpacity(dep.flapBezelOpacity)
+    };
+
     return { accent: accent, driftIntensity: driftIntensity, byFace: byFace };
   },
 
@@ -2617,6 +3314,20 @@ const ClockfaceRegistry = {
   applyDriftIntensity(level) {
     const mult = DRIFT_INTENSITY_MULT[level];
     DriftEngine.setIntensity(mult !== undefined ? mult : 1.0);
+  },
+
+  // Phase 18: seed --bezel-accent once at boot from the accent palette.
+  // The variable holds the bare RGB triple ("244, 197, 108" for gold) so the
+  // CSS can compose rgba() with the live --flap-bezel-opacity tweak.
+  // SkyColorModule and ObservanceModule never touch --bezel-accent; this is
+  // structural chrome (the chihiro lock).
+  applyBezelAccent(accentId) {
+    const entry = ACCENT_PALETTE[accentId] || ACCENT_PALETTE.gold;
+    const hex = entry.hex.replace('#', '');
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    document.documentElement.style.setProperty('--bezel-accent', r + ', ' + g + ', ' + b);
   }
 };
 
@@ -2634,6 +3345,7 @@ let TWEAKS = { accent: 'gold', driftIntensity: 'normal', byFace: {} };
 // early on that flag, leaving these face objects available for picker use.
 window.CalmFace = CalmFace;
 window.MechanicalFace = MechanicalFace;
+window.DeparturesFace = DeparturesFace;   // Phase 18
 window.ClockfaceRegistry = ClockfaceRegistry;
 
 (function boot() {
@@ -2659,6 +3371,15 @@ window.ClockfaceRegistry = ClockfaceRegistry;
   // will continue from these floor values.
   ClockfaceRegistry.applyAccent(TWEAKS.accent);
   ClockfaceRegistry.applyDriftIntensity(TWEAKS.driftIntensity);
+  // Phase 18: seed --bezel-accent once from the accent palette. SkyColorModule
+  // never touches this variable; the bezel is structural chrome.
+  ClockfaceRegistry.applyBezelAccent(TWEAKS.accent);
+  // Phase 18: apply --flap-bezel-opacity when the Departures face is active.
+  if (ACTIVE_FACE_ID === 'departures') {
+    const dep = (TWEAKS.byFace && TWEAKS.byFace.departures) || {};
+    const op = (typeof dep.flapBezelOpacity === 'number') ? dep.flapBezelOpacity : 0.22;
+    document.documentElement.style.setProperty('--flap-bezel-opacity', String(op));
+  }
 
   // Stage scaffolding (creates #stage if missing, attaches resize listener)
   const stage = Stage.init();
