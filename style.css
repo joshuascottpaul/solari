@@ -291,6 +291,11 @@ html, body {
   padding: 18px 18px 0 18px;
   /* Vertical separators between columns (none on the rightmost). */
   border-right: 1px solid rgba(240, 235, 220, 0.12);
+  /* Phase 17.1: clip safety net for content wider than the 204px column.
+     Data layer (TEMP abbreviations, SUN 12h AM/PM drop) keeps values inside
+     the box; this overflow guard prevents visual collision into adjacent
+     cells if a future condition string slips through. */
+  overflow: hidden;
 }
 .mech-cell:last-child { border-right: none; }
 

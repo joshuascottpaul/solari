@@ -2436,6 +2436,24 @@ const MechanicalFace = {
     return '';
   },
 
+  // Phase 17.1: tight abbreviations for multi-word conditions. Full strings
+  // (PARTLY CLOUDY, THUNDERSTORM, etc.) overflow the 204 px TEMP column at
+  // 22 px JetBrains Mono 300. The .mech-cell overflow:hidden is a safety net;
+  // these abbreviations keep the value inside the box without clipping.
+  _CONDITION_ABBR: {
+    'PARTLY CLOUDY':    'P CLOUDY',
+    'MOSTLY CLOUDY':    'M CLOUDY',
+    'PARTLY SUNNY':     'P SUNNY',
+    'MOSTLY SUNNY':     'M SUNNY',
+    'LIGHT RAIN':       'L RAIN',
+    'HEAVY RAIN':       'H RAIN',
+    'LIGHT SNOW':       'L SNOW',
+    'HEAVY SNOW':       'H SNOW',
+    'THUNDERSTORM':     'T STORM',
+    'FREEZING RAIN':    'F RAIN',
+    'FREEZING DRIZZLE': 'F DRIZZLE'
+  },
+
   _tempHtml(state) {
     var t = state.weather.tempC;
     var cond = state.weather.condition;
@@ -2444,6 +2462,7 @@ const MechanicalFace = {
     }
     var sign = t >= 0 ? '+' : '';
     var condStr = String(cond).replace(/_/g, ' ').toUpperCase();
+    if (this._CONDITION_ABBR[condStr]) condStr = this._CONDITION_ABBR[condStr];
     return '<span class="mech-tok-primary">' + sign + t + '°</span> ' +
            '<span class="mech-tok-secondary">' + condStr + '</span>';
   },
@@ -2520,14 +2539,14 @@ const MechanicalFace = {
     if (!rise || !set) return '<span class="mech-tok-tertiary">—</span>';
     var r = this._parseTime(rise, timeFormat);
     var s = this._parseTime(set,  timeFormat);
+    // Phase 17.1: drop AM/PM tokens in SUN 12h mode. Sunrise is always AM,
+    // sunset always PM; the arrow glyphs already encode rise vs set, so the
+    // suffix is redundant and pushes the value over the 204 px column width.
     var out =
       '<span class="mech-tok-accent">↑</span> ' +
-      '<span class="mech-tok-primary">' + r.digits + '</span>';
-    if (r.ampm) out += ' <span class="mech-tok-ampm">' + r.ampm + '</span>';
-    out +=
+      '<span class="mech-tok-primary">' + r.digits + '</span>' +
       ' <span class="mech-tok-accent">↓</span> ' +
       '<span class="mech-tok-primary">' + s.digits + '</span>';
-    if (s.ampm) out += ' <span class="mech-tok-ampm">' + s.ampm + '</span>';
     return out;
   }
 };
