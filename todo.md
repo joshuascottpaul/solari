@@ -2,12 +2,19 @@
 
 Active work tracker. CLAUDE.md is for stable reference; this file is for in-flight items.
 
-## Active V1 work
+## V1 complete
+
+All 5 clockfaces shipped. Phases 16-20 complete as of 2026-05-12.
 
 - [x] **Phase 17: Mechanical face** -- shipped 2026-05-11. Spec at `docs/phase-17-mechanical-face.md`. Hermione approved with minor follow-ups resolved inline (ACCENT_PALETTE dual-source comment, `--type-tertiary` 60s transition fix).
 - [x] **Phase 18: Departures face** -- shipped 2026-05-12. Spec at `docs/phase-18-departures-face.md`. Five data rows, per-character KineticType cascade (110 ms stagger), gold bezel borders, face-aware DriftEngine activeKeys, MoonModule moonrise/moonset extensions.
 - [x] **Phase 19: Editorial face** -- shipped 2026-05-12. Spec at `docs/phase-19-editorial-face.md`. Cormorant Garamond 300 italic time at 360 px, 8-template literary paragraph (32 s cycle, 1200 ms cross-fade), paired right-column macro shift every 6 h, observance dropline, per-face drift amplitude override.
-- [ ] **Phase 20: Horizon face** -- sun and moon arc diagram with hour ticks. New layout primitive (arc) -> chihiro, then ariadne.
+- [x] **Phase 20: Horizon face** -- shipped 2026-05-12. Spec at `docs/phase-20-horizon-face.md`. Full-stage SVG diagram, sun and moon arcs, 25 hour ticks, phase-correct crescent, 1 px gold hairline cursor, 220 px Manrope 200 big-time, accentSkyTrack opt-out, cross-fade macro shift every 6 h.
+
+## Phase 20 follow-ups and intentional regressions
+
+- [ ] **Editorial picker card `real: false`** -- `clockface.js` `FACES` array has Editorial marked `real: false` (picker renders a placeholder, not a live preview). Deferred to V2 -- restore to `real: true` and wire up `EditorialFace.init(card)` + `render()` following the Horizon/Mechanical/Departures pattern.
+- [ ] **Cormorant Garamond font link removed** -- `index.html` and `clockface.html` font links for Cormorant Garamond were removed in a user-directed rollback; Editorial face falls back to Georgia on both the main display and picker. Restore the `<link>` tags and re-verify FOUT behavior when Editorial is revisited. Intentional rollback per user; deferred to V2.
 
 ## Phase 18 follow-ups
 
