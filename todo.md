@@ -51,6 +51,16 @@ Phase 16.1 patch (`6832629`) closed: colon accent fix, sage hex aligned to `#A9C
 Remaining from Phase 16 verification:
 - [ ] **Long-press affordance discoverability** -- coraline flagged moon disc has dual function (short tap = VersionOverlay, long press 600 ms = picker) with no visible indication. Product/design decision, not a doc gap. Bring to chihiro: is a subtle visual hint (ring pulse, first-boot tooltip, label) consistent with the "no dashboard" principle, or is hidden gesture the correct ambient-display answer? Deferred until chihiro weighs in.
 
+## Face design discipline
+
+`docs/face-design-checklist.md` is the internal discipline doc for face-level work. Six items: measured rendered widths, visual fulcrum, viewing distance, reference vocabulary, stroke mass under realistic light, and the Auto Memory Doll question. chihiro consults it at design lock; ariadne embeds the outputs in the spec; coraline verifies items 1 and 2 at visual review. Not a standing agent -- a finite checklist.
+
+Built 2026-05-13 in lieu of the proposed "Violet" clockface-review agent. ripley proposed Violet as a standing horology-critic role; the self-critique reversed it. A standing agent would add process overhead without adding insight the six bullets don't already cover. The "Violet" name is shelved for a future role where composition-of-meaning is the actual job: a kinetic-type copywriter, an observance-line author, or a paragraph-template editor for Editorial prose. The Auto Memory Doll framing fits that role better than it fits a clockface critic.
+
+Origin incident: Horizon Phase 20 assumed ~220 px rendered width for a 220 px Manrope 200 big-time block; measured width at render time was ~685 px. The two-home macro-shift layout shipped with left-clip and overlap defects and required the Phase 20.1 patch to fix. Item 1 of the checklist (measure rendered widths before layout lock) exists to prevent a recurrence.
+
+- [ ] **V2 checklist tuning pass** -- when the next clockface is designed, run it through `docs/face-design-checklist.md` and note any bullets that prove unhelpful or missing. Tune then, not now.
+
 ## Tech debt / doc cleanups
 
 - [x] **Paper accent hex correction** -- `ACCENT_PALETTE.paper.hex` was `#F0EBDC` in the Phase 16 spec (would render identical to `--type-primary` and make the accent invisible). Corrected to `#E8E0D0` in `docs/phase-16-clockface-foundation.md` 2026-05-12. Shipped code (`app.js:126`, `clockface.js:32`) was already correct; spec only needed fixing.

@@ -12,6 +12,8 @@ Phase 20 shipped `HorizonFace` with a geometric mismatch between the 220 px Manr
 
 Chihiro has ruled: collapse to a single home at `left: 140, top: 560` and relocate `#hz-status` from the bottom-right to the top-right, pairing it with the existing header strip. The 6 h macro-shift is retired for Horizon; per-element Perlin drift on the `time` channel remains the primary motion source for layer 4 burn-in coverage.
 
+This incident is the origin of `docs/face-design-checklist.md`. The measurement miss (assumed ~220 px, actual ~685 px) is the canonical failure mode that item 1 of that checklist (measure rendered widths before layout lock) exists to prevent.
+
 ## 2. SDD References
 
 - SDD Section 9 (burn-in protection, eight layers)

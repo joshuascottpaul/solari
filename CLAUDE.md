@@ -126,7 +126,13 @@ Standard agent flow for shipping a phase, in order:
 
 1. **ripley** -- review handoff or scope, surface architectural risks and decisions needing input
 2. **chihiro** -- resolve design decisions (typography, colour, motion, layout)
+
+   > **Face-level work:** chihiro consults `docs/face-design-checklist.md` at design lock before finalizing any face that introduces or revises a clockface.
+
 3. **ariadne** -- draft phase spec from locked decisions; revise if open questions need resolution
+
+   > **Face-level work:** ariadne embeds the checklist's measured widths, stated fulcrum, viewing-distance assumption, reference vocabulary, light verification, and Auto Memory Doll paragraph directly into the phase spec.
+
 4. **misaka** -- implement against the spec
 5. **mikasa** -- simplify the implementation (dead code, premature abstractions, real bug fixes only)
 6. **hermione** -- code review (burn-in, spec adherence, architecture, bundle audit)
@@ -136,7 +142,7 @@ Standard agent flow for shipping a phase, in order:
 Optional verification before merge or push to production:
 
 - **clarice** -- live-page diagnostic (console errors, render verification, picker functionality)
-- **coraline** -- visual review (screenshots, calm aesthetic, "no dashboard" check, accent palette)
+- **coraline** -- visual review (screenshots, calm aesthetic, "no dashboard" check, accent palette; for face-level work, re-verify checklist items 1 and 2)
 - **sentry** -- endurance run (heap, DOM stability, burn-in oscillation, fetch health)
 
 Phase work happens on a feature branch (e.g. `phase-17-mechanical`) so master stays at the last verified state until merge. Verification agents run on the branch before merge.
@@ -175,6 +181,7 @@ data/
 manifest.json
 icons/          # empty (falls back to screenshot icon)
 docs/           # phase implementation specs and design notes
+  face-design-checklist.md        # discipline doc for face-level work; consulted at design lock, embedded in spec, verified at visual review
   phase-16-clockface-foundation.md
   phase-17-mechanical-face.md
   phase-18-departures-face.md
