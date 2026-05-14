@@ -141,6 +141,10 @@ Optional verification before merge or push to production:
 
 Phase work happens on a feature branch (e.g. `phase-17-mechanical`) so master stays at the last verified state until merge. Verification agents run on the branch before merge.
 
+### Context discipline
+
+After leia successfully commits or pushes a phase, suggest `/compact` to the user in the main session. Pipeline-driven phases accumulate tool output (diffs, network logs, file lists) that is no longer load-bearing once the work is shipped; compacting between phases keeps context lean for the next one. Skip the suggestion if nothing actually shipped (clean tree, aborted run).
+
 ### Git workflow
 
 Direct merges to master are the authorized workflow for this project. The Solari repo is single-developer with an AI-agent review pipeline (hermione gates every merge), so self-approved PRs would re-stamp work the pipeline already gated. Master auto-deploys to GitHub Pages, so a bad merge is visible within minutes -- faster feedback than any CI gate currently provides.
