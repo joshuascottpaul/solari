@@ -81,6 +81,8 @@ If you cannot complete this paragraph for a new face, the face does not yet have
 
 This is a discipline doc, not a gate. The pipeline does not add a checklist-runner agent. The cost of consulting six bullets is small enough that it lives in the heads of chihiro and ariadne, written down so they cannot drift away from it.
 
+**Motoko** is the triggered review agent who reads this checklist's outputs and verifies operational coherence -- that the running system matches the spec claims the checklist was used to produce. Motoko is distinct from coraline (pixel verification) and from the checklist itself (declared-value verification). She is invoked selectively by chihiro when there is uncertainty, a face revision, or a new system primitive; not on every phase.
+
 ## Open question deferred to a future cycle
 
 The "Violet" naming proposal (ripley, 2026-05-13) is shelved against a future role where composition-of-meaning is the actual job — a kinetic-type copywriter, an observance-line author, or a paragraph-template editor for Editorial. The Auto Memory Doll framing fits that role better than it fits a clockface critic.

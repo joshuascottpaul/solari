@@ -128,10 +128,12 @@ Standard agent flow for shipping a phase, in order:
 2. **chihiro** -- resolve design decisions (typography, colour, motion, layout)
 
    > **Face-level work:** chihiro consults `docs/face-design-checklist.md` at design lock before finalizing any face that introduces or revises a clockface.
+   > **Face-level work (uncertainty / revision / new primitive):** invoke **motoko** for operational coherence review before signing off; address any named drift before handing off to ariadne.
 
 3. **ariadne** -- draft phase spec from locked decisions; revise if open questions need resolution
 
    > **Face-level work:** ariadne embeds the checklist's measured widths, stated fulcrum, viewing-distance assumption, reference vocabulary, light verification, and Auto Memory Doll paragraph directly into the phase spec.
+   > **Face-level work (if motoko reviewed):** address motoko's named drift in the spec, or document explicitly why the user chose to ship with it.
 
 4. **misaka** -- implement against the spec
 5. **mikasa** -- simplify the implementation (dead code, premature abstractions, real bug fixes only)
@@ -144,6 +146,10 @@ Optional verification before merge or push to production:
 - **clarice** -- live-page diagnostic (console errors, render verification, picker functionality)
 - **coraline** -- visual review (screenshots, calm aesthetic, "no dashboard" check, accent palette; for face-level work, re-verify checklist items 1 and 2)
 - **sentry** -- endurance run (heap, DOM stability, burn-in oscillation, fetch health)
+
+Triggered review (face-level only):
+
+- **motoko** -- operational coherence; verifies that spec claims and running system agree; distinct from chihiro (who makes design choices), coraline (who verifies pixels), and the checklist (which verifies declared values); invoked by chihiro on uncertainty, face revision, or system-primitive introduction -- not a mandatory pipeline step
 
 Phase work happens on a feature branch (e.g. `phase-17-mechanical`) so master stays at the last verified state until merge. Verification agents run on the branch before merge.
 

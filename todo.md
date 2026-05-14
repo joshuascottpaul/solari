@@ -55,11 +55,14 @@ Remaining from Phase 16 verification:
 
 `docs/face-design-checklist.md` is the internal discipline doc for face-level work. Six items: measured rendered widths, visual fulcrum, viewing distance, reference vocabulary, stroke mass under realistic light, and the Auto Memory Doll question. chihiro consults it at design lock; ariadne embeds the outputs in the spec; coraline verifies items 1 and 2 at visual review. Not a standing agent -- a finite checklist.
 
-Built 2026-05-13 in lieu of the proposed "Violet" clockface-review agent. ripley proposed Violet as a standing horology-critic role; the self-critique reversed it. A standing agent would add process overhead without adding insight the six bullets don't already cover. The "Violet" name is shelved for a future role where composition-of-meaning is the actual job: a kinetic-type copywriter, an observance-line author, or a paragraph-template editor for Editorial prose. The Auto Memory Doll framing fits that role better than it fits a clockface critic.
+Built 2026-05-13 in lieu of the proposed "Violet" clockface-review agent. ripley proposed Violet as a standing horology-critic role; the self-critique reversed it. A standing agent would add process overhead without adding insight the six bullets don't already cover. The "Violet" name is shelved for a future role where composition-of-meaning is the actual job: a kinetic-type copywriter, an observance-line author, or a paragraph-template editor for Editorial prose. The Auto Memory Doll framing fits that role better than it fits a clockface critic. Violet does not own the face-design-review role -- that is motoko's job.
+
+Round 2 (2026-05-14): **Motoko** was built (`.claude/agents/13-motoko.md`) as a triggered operational-coherence reviewer. Distinct from Violet: motoko's scope is drift between what a face's spec says it does and what the running system actually does -- not horology, not composition-of-meaning. Motoko is invoked selectively (chihiro uncertainty, face revision, system-primitive introduction), not as a mandatory pipeline step. She reports 3-5 observations in a three-sentence format with a single-line verdict, capped at 350 words.
 
 Origin incident: Horizon Phase 20 assumed ~220 px rendered width for a 220 px Manrope 200 big-time block; measured width at render time was ~685 px. The two-home macro-shift layout shipped with left-clip and overlap defects and required the Phase 20.1 patch to fix. Item 1 of the checklist (measure rendered widths before layout lock) exists to prevent a recurrence.
 
 - [ ] **V2 checklist tuning pass** -- when the next clockface is designed, run it through `docs/face-design-checklist.md` and note any bullets that prove unhelpful or missing. Tune then, not now.
+- [ ] **Motoko cross-face pattern audit** -- after motoko has reviewed at least 2 faces, audit whether her cross-face inconsistency observations have surfaced patterns worth promoting to memory or to the checklist.
 
 ## Tech debt / doc cleanups
 
