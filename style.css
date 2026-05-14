@@ -879,17 +879,6 @@ html, body {
 
 #hz-time .hz-ampm[hidden] { display: none; }
 
-/* Phase 20: cross-fade transition classes. MacroShifter toggles these on
-   the 6 h boundary; CSS handles the opacity tween. */
-#hz-time.is-fade-out {
-  opacity: 0;
-  transition: opacity 400ms ease-out;
-}
-#hz-time.is-fade-in {
-  opacity: 1;
-  transition: opacity 400ms ease-in;
-}
-
 /* Status block. Right-anchored at right=60, top=140. Drift on slot.
    Phase 20.1: relocated from bottom-right to top-right to clear the
    220 px big-time block in the lower band. Pairs with #hz-header

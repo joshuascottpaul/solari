@@ -270,3 +270,15 @@ Standard pipeline: phase branch `phase-20.1-horizon-overlap-fix`, misaka impleme
 - `clockface.js` lines 234-243, 470-471 -- picker live preview for Horizon.
 - Coraline screenshots: `screenshots/horizon-overlap-audit/01-initial-state.png`, `screenshots/horizon-overlap-audit/02-home-A-bottom-left.png`.
 - SDD v0.5 Section 9 (burn-in protection); Section 22 (acceptance criteria).
+
+## 20. Post-V1 housekeeping (2026-05-14)
+
+After this spec shipped, Motoko's first retrospective audit (2026-05-14) identified the reserved cross-fade vocabulary as named drift -- a face-local transition primitive declared in three files with no runtime that exercised it. Ripley triaged the finding as a delete-now cleanup. The following were removed from the codebase on 2026-05-14:
+
+- `CONFIG.macroShift.timeTransitionStyleByFace` (`app.js`)
+- `MacroShifter._timeTransitionStyle()` (`app.js`)
+- `MacroShifter._applyTimeFade()` and the `_fadeStep1Id` / `_fadeStep2Id` guards (`app.js`)
+- The `if (... === 'fade')` branch inside `MacroShifter._applyTime()` (`app.js`)
+- `#hz-time.is-fade-out` and `#hz-time.is-fade-in` CSS rules (`style.css`)
+
+Bundle delta: -2,979 bytes (`app.js` -2,697, `style.css` -282). The translate transition path is unchanged. Section 4.3 above and the Section 15 "Cross-fade vocabulary removal" out-of-scope item record what the 20.1 patch shipped; this section records what was removed shortly after. If a future Horizon variant needs a cross-fade big-time transition, the vocabulary should be reintroduced fresh against that face's spec rather than carried forward as dead code.

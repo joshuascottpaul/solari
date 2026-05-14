@@ -702,6 +702,10 @@ Phase 16 Section 8 `ClockfaceRegistry.applyAccent(TWEAKS.accent)` writes `--type
 
 If the user picks `accent = 'sky'` while on Horizon, the cursor and big-time colon become the sky-blue hex (`#7FA8C9`) and remain that for the session, never modulating. Same for sage, paper. The face concept (a fixed visual anchor) carries across all four accent palette entries.
 
+### V1 implementation note
+
+`accentSkyTrack = false` is a reserved hook in V1. The sky-altitude `--type-accent` modulation that the flag would suppress was removed from `SkyColorModule` before V1 shipped; no V1 face's accent is modulated by sky altitude. Horizon's gold stays fixed not because the flag is exercised, but because nothing writes `--type-accent` after boot on any face. The conditional in `SkyColorModule.update()` is present as a forward declaration: if V2 re-introduces sky-altitude accent modulation, Horizon's opt-out activates without a code change. The Section 11 design rationale (gold as a fixed visual anchor) remains the intended V2 behavior; the V1 implementation happens to produce the same result by a different path.
+
 ## 12. Phase-Correct Crescent Rendering
 
 Direct port of the prototype's `moonPhasePath` (`design_handoff_clockface/clockface.html:739-751`), with one rename for clarity:

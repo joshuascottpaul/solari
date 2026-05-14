@@ -153,12 +153,6 @@ const CONFIG = {
     // left/top with a CSS transition; 'fade' cross-fades opacity, swaps
     // home at the midpoint, and fades back in. Horizon uses 'fade' so the
     // 220 px big-time block does not read as obvious sliding motion.
-    // Phase 20.1: kept as a reserved hook for a future Horizon variant.
-    // No longer fires because the homes array has length 1 and the
-    // interval is 0; MacroShifter never schedules a shift for Horizon.
-    timeTransitionStyleByFace: {
-      horizon: 'fade'
-    },
     // Phase 19: paired right-column block homes. When set, MacroShifter
     // mirrors a second element (#ed-right) on the same interval so the
     // top-half composition swaps as a unit. Pixel coords (top-left anchor).
@@ -1681,15 +1675,6 @@ const MacroShifter = {
     return 'time';
   },
 
-  // Phase 20: per-face transition style. 'translate' (default) tweens
-  // left/top with a CSS transition. 'fade' cross-fades opacity via two
-  // CSS classes, swapping position while opacity is 0.
-  _timeTransitionStyle() {
-    var byFace = CONFIG.macroShift.timeTransitionStyleByFace;
-    if (byFace && byFace[ACTIVE_FACE_ID]) return byFace[ACTIVE_FACE_ID];
-    return 'translate';
-  },
-
   // Phase 19: detect pixel vs percent home format. Calm and Mechanical use
   // percent (0..100); Editorial uses top-left pixel coords (any value > 100).
   // Mixed-format tables within one face are not supported (spec Section 7).
@@ -1805,14 +1790,6 @@ const MacroShifter = {
     var home = timeHomes[this._timeIndex];
     var unit = this._homesArePixels(timeHomes) ? 'px' : '%';
 
-    // Phase 20: cross-fade transition style (Horizon). Fade-out 400 ms,
-    // swap position while invisible, fade-in 400 ms. On first apply
-    // (withTransition === false), skip the fade and place directly so
-    // the boot paint lands at the right home without an opacity dip.
-    if (withTransition && this._timeTransitionStyle() === 'fade') {
-      this._applyTimeFade(home, unit);
-      return;
-    }
     this._applyHome(this._timeElementId(), home, CONFIG.macroShift.timeTransitionSec, 'time', withTransition, unit);
 
     // Phase 19: paired-block mirror. Editorial swaps #ed-right alongside
@@ -1839,43 +1816,6 @@ const MacroShifter = {
     this._applyHome('moon-disc', home, CONFIG.macroShift.moonTransitionSec, 'moon', withTransition, '%');
   },
 
-  // Phase 20: cross-fade implementation. 400 ms fade-out, swap home while
-  // invisible, 400 ms fade-in. Position swap goes through _applyHome with
-  // withTransition=false (no CSS transition on left/top during fade) so
-  // there is no slide. _fadeStep1Id and _fadeStep2Id are tracked so
-  // multiple back-to-back shifts do not stack.
-  _fadeStep1Id: null,
-  _fadeStep2Id: null,
-  _applyTimeFade(home, unit) {
-    var id = this._timeElementId();
-    var el = document.getElementById(id);
-    if (!el) return;
-    var self = this;
-
-    // Clear any in-flight fade so a back-to-back shift does not orphan
-    // the element at opacity 0.
-    if (this._fadeStep1Id !== null) { clearTimeout(this._fadeStep1Id); this._fadeStep1Id = null; }
-    if (this._fadeStep2Id !== null) { clearTimeout(this._fadeStep2Id); this._fadeStep2Id = null; }
-    el.classList.remove('is-fade-in');
-
-    // Step 0: trigger fade-out via class. CSS handles the opacity tween.
-    el.classList.add('is-fade-out');
-
-    // Step 1: at 400 ms, swap position (no CSS left/top transition) and
-    // flip classes for the fade-in.
-    this._fadeStep1Id = setTimeout(function () {
-      self._fadeStep1Id = null;
-      self._applyHome(id, home, 0, 'time', false, unit);
-      el.classList.remove('is-fade-out');
-      el.classList.add('is-fade-in');
-      // Step 2: at +400 ms, remove the fade-in class so the element settles
-      // at default opacity (1) without leaving the class stuck.
-      self._fadeStep2Id = setTimeout(function () {
-        self._fadeStep2Id = null;
-        el.classList.remove('is-fade-in');
-      }, 400);
-    }, 400);
-  }
 };
 
 const RefresherCycle = {
