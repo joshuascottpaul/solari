@@ -43,7 +43,7 @@ The authoritative specification is `2026 04 27 10 15 PM - SDD - Ambient Display 
 - `MechanicalFace` -- Phase 17 face object; first face with real (non-no-op) `render(state, tweaks)` logic; builds a five-column complications grid (TEMP, AIR, TIDE, MOON, SUN at y=620), HH:MM time at 236 px JetBrains Mono 300, and a 1 px minute-arc hairline at y=265; time alternates two homes every 3h; grid columns rotate every 6h via deterministic permutation; `tweaks.byFace.mechanical.timeFormat` controls 24h/12h
 - `DeparturesFace` -- Phase 18 face object; split-flap board with five data rows, per-character KineticType cascade (110 ms stagger), gold bezel borders on the flap-pair headline time, per-row Perlin drift via five independent `departureRow0..4` sub-channels; `tweaks.byFace.departures.flapBezelOpacity` controls bezel opacity
 - `EditorialFace` -- Phase 19 face object; magazine-cover composition with Cormorant Garamond 300 italic time at 360 px, paired right-column block (kicker + weekday + month-day), 8-template literary paragraph selected by `(period, weather-state, moon-phase)` tuple hash cycling every 32 s with 1200 ms cross-fade, 4-column footer of facts, italic observance dropline on light observance days; time and right-column block shift as a paired composition every 6 h via `CONFIG.macroShift.timeIntervalHoursByFace` and `CONFIG.macroShift.rightBlockHomesByFace`; drift amplitude overridden per-face via `CONFIG.driftClasses.timeByFace`; `tweaks.byFace.editorial.timeFormat` controls 24h/12h; `DriftEngine._elementSizesByFace` clamps drift geometry per face; cross-fade race guarded by `_fadeTimerId`; `ObservanceModule._builtIn` entries carry a new `name_long` field consumed by the dropline; Cormorant Garamond 300 italic font link was removed from `index.html` and `clockface.html` in a user-directed V1 rollback; Editorial falls back to Georgia on both the main display and picker (V2 follow-up; see todo.md)
-- `HorizonFace` -- Phase 20 face object (final V1 face); astronomy-truth face; full-stage 1180x820 SVG with dashed sun and moon arcs from rise to set, live discs on their arcs, 25 hour ticks below the horizon line at y=440, and a 1 px gold hairline cursor at the current minute; big-time at 220 px Manrope 200 sits bottom-left and cross-fades between two homes every 6 h; status block (MOON, TIDE, AIR, SUN) sits bottom-right in JetBrains Mono; `accentSkyTrack = false` prevents `SkyColorModule` from modulating `--type-accent` so the gold hairline and big-time colon stay fixed across all sky-altitude bands; SVG `clipPath` at `y >= horizonY` clips sun and moon discs as they dip behind the horizon at rise/set; `alwaysUp` and `alwaysDown` edge cases handled; `tweaks.byFace.horizon.timeFormat` controls 24h/12h; drift uses `sun` (101 s) and `horizon` (109 s, bumped from 101 s for coprime separation) channels; `window.HorizonFace` exported for picker preview; picker long-press target is `#horizon-time`
+- `HorizonFace` -- Phase 20 face object (final V1 face); astronomy-truth face; full-stage 1180x820 SVG with dashed sun and moon arcs from rise to set, live discs on their arcs, 25 hour ticks below the horizon line at y=440, and a 1 px gold hairline cursor at the current minute; big-time at 220 px Manrope 200 sits at a single fixed home (`left: 140, top: 560`) -- Phase 20.1 (2026-05-13) collapsed the original two-home macro shift to a single home after a measured-width audit showed the 685 px block caused left-clip at Home A and overlap with the status block at Home B; status block (MOON, TIDE, AIR, SUN) relocated to top-right (`top: 140, right: 60`) in Phase 20.1, pairing with the header strip; `accentSkyTrack = false` prevents `SkyColorModule` from modulating `--type-accent` so the gold hairline and big-time colon stay fixed across all sky-altitude bands; SVG `clipPath` at `y >= horizonY` clips sun and moon discs as they dip behind the horizon at rise/set; `alwaysUp` and `alwaysDown` edge cases handled; `tweaks.byFace.horizon.timeFormat` controls 24h/12h; drift uses `sun` (101 s) and `horizon` (109 s, bumped from 101 s for coprime separation) channels; `window.HorizonFace` exported for picker preview; picker long-press target is `#horizon-time`; cross-fade classes (`is-fade-out`, `is-fade-in`) and `timeTransitionStyleByFace.horizon = 'fade'` are preserved as a reserved hook but are unreachable in 20.1 because `MacroShifter` no longer schedules a shift for Horizon (`timeIntervalHoursByFace.horizon = 0`)
 - `CONFIG.faceActiveKeys` -- face-keyed table mapping each face ID to its set of active drift channel keys; `DriftEngine.start()` reads this instead of hard-coding a channel list; adding Phase 20 requires only a new table entry
 - `--bezel-accent` CSS variable -- structural-chrome accent seeded once at boot from the accent palette; never written by `SkyColorModule` or `ObservanceModule`; used only by the Departures flap-pair bezel border (opted out of sky modulation via a separate CSS var, not the `--type-accent` path)
 - `MoonModule` AppState extensions -- `AppState.moon.moonrise`, `.moonset`, `.alwaysUp`, `.alwaysDown` added in Phase 18 for Departures row data; reused by Phase 20 (Horizon); computed via `SunCalc.getMoonTimes` on the existing 6 h poll cadence
@@ -57,7 +57,7 @@ The authoritative specification is `2026 04 27 10 15 PM - SDD - Ambient Display 
 
 ## Phase Status
 
-V0 complete (Phases 1-15). V1 complete (Phases 16-20). All 5 clockfaces shipped.
+V0 complete (Phases 1-15). V1 ships 4 faces (Calm, Mechanical, Departures, Horizon); Editorial deferred (code merged but webfont and picker live-render rolled back per user direction, V2).
 
 - [x] Phase 1: Static layout
 - [x] Phase 2: Live clock and date
@@ -77,8 +77,8 @@ V0 complete (Phases 1-15). V1 complete (Phases 16-20). All 5 clockfaces shipped.
 - [x] Phase 16: Clockface foundation -- Stage primitive, face registry, CalmFace, picker page, storage contract, accent and driftIntensity tweaks (V1 opening phase)
 - [x] Phase 17: Mechanical face -- MechanicalFace with five-column complications grid, JetBrains Mono 300, minute-arc hairline, per-face macro shifts, SOLARI_PICKER boot guard, picker live preview
 - [x] Phase 18: Departures face -- DeparturesFace with five data rows, per-character split-flap cascade, gold bezel borders, five independent departureRow drift sub-channels, face-aware DriftEngine activeKeys, MoonModule moonrise/moonset extensions
-- [x] Phase 19: Editorial face -- EditorialFace with Cormorant Garamond 300 italic time at 360 px, 8-template literary paragraph (32s cycle, 1200ms cross-fade), paired right-column macro shift every 6h, observance dropline, per-face drift amplitude override
-- [x] Phase 20: Horizon face -- HorizonFace with full-stage 1180x820 SVG diagram, sun and moon arcs, 25 hour ticks, phase-correct crescent, 1 px gold hairline cursor, 220 px Manrope 200 big-time, accentSkyTrack opt-out, cross-fade macro shift every 6h, CONFIG.macroShift.timeTransitionStyleByFace
+- [~] Phase 19: Editorial face -- partial (code shipped; Cormorant Garamond webfont and picker live-render rolled back per user direction; falls back to Georgia; V2 restore)
+- [x] Phase 20: Horizon face -- HorizonFace with full-stage 1180x820 SVG diagram, sun and moon arcs, 25 hour ticks, phase-correct crescent, 1 px gold hairline cursor, 220 px Manrope 200 big-time, accentSkyTrack opt-out, CONFIG.macroShift.timeTransitionStyleByFace (cross-fade path retained as reserved hook; macro shift for Horizon disabled in Phase 20.1)
 
 ## Key Design Rules
 
@@ -105,8 +105,8 @@ Eight independent layers -- defense in depth. See SDD Section 9 for full details
 
 - **Open-Meteo Forecast** (weather + sun): `api.open-meteo.com/v1/forecast` -- Vancouver coords, 15-min poll
 - **Open-Meteo Air Quality**: `air-quality-api.open-meteo.com/v1/air-quality` -- 30-min poll
-- **DFO IWLS Tides** (Point Atkinson): `api-iwls.dfo-mpo.gc.ca` -- 6h poll, currently returning 404; fallback to `/data/tides.json` (refreshed weekly by GitHub Actions)
-- **EC Weather Alerts** (Metro Vancouver): `weather.gc.ca/rss/battleboard/bcrm30_e.xml` -- 15-min poll, CORS blocked; fallback to `/data/alerts.json`
+- **DFO IWLS Tides** (Point Atkinson): `api-iwls.dfo-mpo.gc.ca` -- 6h poll, currently returning 404; fallback to `data/tides.json` (refreshed weekly by GitHub Actions)
+- **EC Weather Alerts** (Metro Vancouver): `weather.gc.ca/rss/battleboard/bcrm30_e.xml` -- 15-min poll, CORS blocked; fallback to `data/alerts.json`
 - **CORS status:** DFO and EC feeds both fail CORS. DFO tides are now kept current via a weekly GitHub Actions workflow (`.github/workflows/refresh-tides.yml`). EC alerts remain on a static fallback.
 - **GitHub Actions:** `refresh-tides.yml` runs every Monday at 06:00 UTC, fetches 90 days of predictions from DFO IWLS, and auto-commits updated `data/tides.json`. No-ops cleanly if the fetch fails or the data is unchanged.
 
@@ -176,6 +176,7 @@ docs/           # phase implementation specs and design notes
   phase-18-departures-face.md
   phase-19-editorial-face.md
   phase-20-horizon-face.md
+  phase-20.1-horizon-overlap-fix.md
 .github/
   workflows/
     refresh-tides.yml   # weekly cron: fetches and commits DFO tide predictions

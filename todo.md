@@ -4,17 +4,26 @@ Active work tracker. CLAUDE.md is for stable reference; this file is for in-flig
 
 ## V1 complete
 
-All 5 clockfaces shipped. Phases 16-20 complete as of 2026-05-12.
+4 clockfaces shipped. Phases 16-20 complete as of 2026-05-12. Phase 20.1 patch (Horizon overlap fix) shipped 2026-05-13. Editorial code merged but user-facing surfaces deferred to V2.
 
 - [x] **Phase 17: Mechanical face** -- shipped 2026-05-11. Spec at `docs/phase-17-mechanical-face.md`. Hermione approved with minor follow-ups resolved inline (ACCENT_PALETTE dual-source comment, `--type-tertiary` 60s transition fix).
 - [x] **Phase 18: Departures face** -- shipped 2026-05-12. Spec at `docs/phase-18-departures-face.md`. Five data rows, per-character KineticType cascade (110 ms stagger), gold bezel borders, face-aware DriftEngine activeKeys, MoonModule moonrise/moonset extensions.
-- [x] **Phase 19: Editorial face** -- shipped 2026-05-12. Spec at `docs/phase-19-editorial-face.md`. Cormorant Garamond 300 italic time at 360 px, 8-template literary paragraph (32 s cycle, 1200 ms cross-fade), paired right-column macro shift every 6 h, observance dropline, per-face drift amplitude override.
-- [x] **Phase 20: Horizon face** -- shipped 2026-05-12. Spec at `docs/phase-20-horizon-face.md`. Full-stage SVG diagram, sun and moon arcs, 25 hour ticks, phase-correct crescent, 1 px gold hairline cursor, 220 px Manrope 200 big-time, accentSkyTrack opt-out, cross-fade macro shift every 6 h.
+- [~] **Phase 19: Editorial face** -- partial. Code shipped 2026-05-12; webfont and picker live-render rolled back per user direction. Falls back to Georgia. Spec at `docs/phase-19-editorial-face.md`. V2 restore items in "Editorial -- coming soon" section below.
+- [x] **Phase 20: Horizon face** -- shipped 2026-05-12. Spec at `docs/phase-20-horizon-face.md`. Full-stage SVG diagram, sun and moon arcs, 25 hour ticks, phase-correct crescent, 1 px gold hairline cursor, 220 px Manrope 200 big-time, accentSkyTrack opt-out.
+- [x] **Phase 20.1: Horizon overlap fix** -- shipped 2026-05-13. Spec at `docs/phase-20.1-horizon-overlap-fix.md`. Status block relocated to top-right; big-time collapsed to single home at `left: 140`; `MacroShifter` time-shift disabled for Horizon (`intervalH = 0` guard).
 
-## Phase 20 follow-ups and intentional regressions
+## Editorial -- coming soon (V2 restore checklist)
 
-- [ ] **Editorial picker card `real: false`** -- `clockface.js` `FACES` array has Editorial marked `real: false` (picker renders a placeholder, not a live preview). Deferred to V2 -- restore to `real: true` and wire up `EditorialFace.init(card)` + `render()` following the Horizon/Mechanical/Departures pattern.
+Editorial is user-facing "coming soon" until the two items below are restored. The face code is present and loads; it renders with a Georgia fallback until V2.
+
 - [ ] **Cormorant Garamond font link removed** -- `index.html` and `clockface.html` font links for Cormorant Garamond were removed in a user-directed rollback; Editorial face falls back to Georgia on both the main display and picker. Restore the `<link>` tags and re-verify FOUT behavior when Editorial is revisited. Intentional rollback per user; deferred to V2.
+- [ ] **Editorial picker card `real: false`** -- `clockface.js` `FACES` array has Editorial marked `real: false` (picker renders a placeholder, not a live preview). Deferred to V2 -- restore to `real: true` and wire up `EditorialFace.init(card)` + `render()` following the Horizon/Mechanical/Departures pattern.
+
+## Phase 20.1 follow-ups
+
+Phase 20.1 (2026-05-13) closed the Horizon overlap issue: status block relocated to top-right, big-time collapsed to a single home at `left: 140`. Standard pipeline complete.
+
+- [ ] **DriftEngine clamp half-extent for Horizon time.** `_elementSizesByFace.horizon.time.hw = 260` understates the measured ~342 px half-width. Harmless at the current single-home position (drift envelope stays inside the stage), but should be tightened in a V2 tuning pass.
 
 ## Phase 18 follow-ups
 
@@ -40,7 +49,7 @@ All 5 clockfaces shipped. Phases 16-20 complete as of 2026-05-12.
 Phase 16.1 patch (`6832629`) closed: colon accent fix, sage hex aligned to `#A9C29A`, suncalc.js doc size, Development section refresh, `todo.md` pointer added.
 
 Remaining from Phase 16 verification:
-- [ ] **Long-press affordance discoverability** -- coraline flagged moon disc has dual function (short tap = VersionOverlay, long press 600 ms = picker) with no visible indication. If deployment model is single-user setup, accept as hidden gesture. If guests/family need to discover, add subtle ring or first-boot hint -> deferred until usage signal.
+- [ ] **Long-press affordance discoverability** -- coraline flagged moon disc has dual function (short tap = VersionOverlay, long press 600 ms = picker) with no visible indication. Product/design decision, not a doc gap. Bring to chihiro: is a subtle visual hint (ring pulse, first-boot tooltip, label) consistent with the "no dashboard" principle, or is hidden gesture the correct ambient-display answer? Deferred until chihiro weighs in.
 
 ## Tech debt / doc cleanups
 

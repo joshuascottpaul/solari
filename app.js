@@ -132,23 +132,30 @@ const CONFIG = {
       // value range (any value > 100 -> pixels). Two homes alternated on
       // a 6 h interval (see timeIntervalHoursByFace).
       editorial: [[100, 200], [560, 200]],
-      // Phase 20: Horizon uses pixel coords. Home A = bottom-left
-      // (left: 90, top: 560), Home B = bottom-right (left: 870, top: 560
-      // = 1180 - 90 - 220 wide-block-allowance). Macro shifter writes
-      // left/top directly and cross-fades opacity on swap.
-      horizon: [[90, 560], [870, 560]]
+      // Phase 20.1: collapsed to a single home after measured-width audit.
+      // Home A (left=90) clipped the leading character; Home B (left=870)
+      // overlapped #hz-status. left=140 centers the ~685 px block in the
+      // lower band with both edges inside the stage and clear of the
+      // relocated status block (now top-right).
+      horizon: [[140, 560]]
     },
     // Phase 19: per-face interval override. Editorial and Horizon shift
     // every 6 h; faces without an entry use the global timeIntervalHours
     // (3 h). MacroShifter reads this when scheduling its time interval.
     timeIntervalHoursByFace: {
       editorial: 6,
-      horizon: 6
+      // Phase 20.1: 0 disables the macro-shift timer for Horizon.
+      // Layer-4 burn-in coverage shifts entirely to per-element Perlin
+      // drift on the `time` channel (117 s, 24/18 px amplitude).
+      horizon: 0
     },
     // Phase 20: per-face transition style. 'translate' (default) tweens
     // left/top with a CSS transition; 'fade' cross-fades opacity, swaps
     // home at the midpoint, and fades back in. Horizon uses 'fade' so the
     // 220 px big-time block does not read as obvious sliding motion.
+    // Phase 20.1: kept as a reserved hook for a future Horizon variant.
+    // No longer fires because the homes array has length 1 and the
+    // interval is 0; MacroShifter never schedules a shift for Horizon.
     timeTransitionStyleByFace: {
       horizon: 'fade'
     },
@@ -612,7 +619,7 @@ const TideModule = {
       // not on HTTP errors (400, 500, etc.) which should be retried.
       if (result.corsBlocked) {
         this._corsAvailable = false;
-        console.warn('TideModule: DFO CORS blocked; falling back to /data/tides.json');
+        console.warn('TideModule: DFO CORS blocked; falling back to data/tides.json');
       } else if (result.httpStatus) {
         console.warn('TideModule: DFO returned HTTP ' + result.httpStatus + '; will retry next interval');
       }
@@ -681,7 +688,7 @@ const TideModule = {
   },
 
   async _fetchLocal() {
-    const data = await ResilienceManager.fetch('/data/tides.json');
+    const data = await ResilienceManager.fetch('data/tides.json');
     if (!data || !Array.isArray(data)) return null;
     // Local format matches our internal event shape:
     // [{ "type": "high", "heightM": 4.7, "time": "ISO8601" }, ...]
@@ -734,7 +741,7 @@ const AlertModule = {
       }
       if (result.corsBlocked) {
         this._corsAvailable = false;
-        console.warn('AlertModule: EC CORS blocked; falling back to /data/alerts.json');
+        console.warn('AlertModule: EC CORS blocked; falling back to data/alerts.json');
       }
     }
     return await this._fetchLocal();
@@ -801,7 +808,7 @@ const AlertModule = {
   },
 
   async _fetchLocal() {
-    const data = await ResilienceManager.fetch('/data/alerts.json');
+    const data = await ResilienceManager.fetch('data/alerts.json');
     if (!data) return null;
     // Local format: { severity, headline, description, expires } or null
     if (data.headline && data.expires) {
@@ -829,12 +836,12 @@ const AlmanacModule = {
   },
 
   async _loadStatic() {
-    const data = await ResilienceManager.fetch('/data/almanac.json');
+    const data = await ResilienceManager.fetch('data/almanac.json');
     if (Array.isArray(data)) {
       this._events = data;
     } else {
       this._events = [];
-      console.warn('AlmanacModule: failed to load /data/almanac.json');
+      console.warn('AlmanacModule: failed to load data/almanac.json');
     }
   },
 
@@ -1698,12 +1705,23 @@ const MacroShifter = {
   start() {
     if (!CONFIG.macroShift.enabled) return;
 
-    // Deterministic initial index from current hour, using the per-face interval.
+    // Phase 20.1: per-face opt-out. A face with intervalH === 0 or a
+    // single-entry homes array is treated as "no macro shift for time".
+    // Initial _applyTime still runs so the boot home is placed; the
+    // recurring setInterval is skipped. _applyMoon and the moon timer
+    // are unaffected (Horizon has no moon disc anyway). Without this
+    // guard, intervalH === 0 would yield setInterval(fn, 0), firing
+    // as fast as the event loop allows.
     var now = new Date();
     var h = now.getHours() + now.getMinutes() / 60;
     var intervalH = this._timeIntervalHours();
     var timeHomes = this._timeHomes();
-    this._timeIndex = Math.floor(h / intervalH) % timeHomes.length;
+    var skipTimeShift = (intervalH <= 0) || (timeHomes.length <= 1);
+
+    // Deterministic initial index from current hour, using the per-face interval.
+    this._timeIndex = skipTimeShift
+      ? 0
+      : Math.floor(h / intervalH) % timeHomes.length;
     this._moonIndex = Math.floor(h / CONFIG.macroShift.moonIntervalHours) % CONFIG.macroShift.moonHomes.length;
 
     // Apply initial positions (no transition on first set)
@@ -1711,10 +1729,14 @@ const MacroShifter = {
     this._applyMoon(false);
 
     // Schedule recurring shifts. Editorial/Horizon read per-face interval.
-    this._timeTimerId = setInterval(
-      () => this.shiftTime(),
-      intervalH * 60 * 60 * 1000
-    );
+    // Phase 20.1: skip the time shift timer for faces with a single home or
+    // a non-positive interval (Horizon).
+    if (!skipTimeShift) {
+      this._timeTimerId = setInterval(
+        () => this.shiftTime(),
+        intervalH * 60 * 60 * 1000
+      );
+    }
     this._moonTimerId = setInterval(
       () => this.shiftMoon(),
       CONFIG.macroShift.moonIntervalHours * 60 * 60 * 1000

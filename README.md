@@ -19,7 +19,7 @@ Live: [joshuascottpaul.github.io/solari](https://joshuascottpaul.github.io/solar
 
 ## Key features
 
-- 5 selectable clockfaces: Calm, Mechanical, Departures, Editorial, Horizon (V1 feature complete)
+- 4 clockfaces shipped (Calm, Mechanical, Departures, Horizon); Editorial coming soon
 - Split-flap kinetic transitions on rotating content slots
 - Sky-colored typography that shifts with sun altitude, weather, and observances
 - 8-layer burn-in protection: Perlin drift, pixel-shift, kinetic churn, macro position shifts, sky-color modulation, luminance breath, daily 03:00 refresher cycle, and rendering hygiene
@@ -27,7 +27,7 @@ Live: [joshuascottpaul.github.io/solari](https://joshuascottpaul.github.io/solar
 
 ## Faces
 
-Five faces ship with V1. Each is a distinct visual voice on the same underlying data engine.
+V1 ships four faces. Each is a distinct visual voice on the same underlying data engine. Editorial is coming soon.
 
 ### Calm
 
@@ -47,11 +47,9 @@ The Solari namesake. Split-flap board with gold-bezel hour-minute flap pair, fiv
 
 ![Departures face](screenshots/faces/departures.png)
 
-### Editorial
+### Editorial (coming soon)
 
-Magazine-cover composition. Large italic time on the left, mirrored right-column kicker and date block, rotating literary almanac paragraph that cross-fades every 32 seconds. Layout flips every 6 hours. Note: the Editorial picker card shows a placeholder in the current release; apply it via the URL method or `localStorage` instead (see below).
-
-![Editorial face](screenshots/faces/editorial.png)
+Magazine-cover composition. Large italic time on the left, mirrored right-column kicker and date block, rotating literary almanac paragraph that cross-fades every 32 seconds. Layout flips every 6 hours. The face code is present but the webfont is not yet loaded; the current build renders with a Georgia fallback. A polished release is planned for V2.
 
 ### Horizon
 
@@ -73,7 +71,7 @@ Three ways to reach the picker:
 
 A short single tap on the moon disc or time numerals opens the version overlay instead. Hold longer (600 ms) for the picker.
 
-Valid face IDs for the localStorage method: `calm`, `mechanical`, `departures`, `editorial`, `horizon`.
+Valid face IDs for the localStorage method: `calm`, `mechanical`, `departures`, `editorial`, `horizon`. (`editorial` renders with a Georgia fallback in the current release; the webfont ships in V2.)
 
 ### Using the picker
 
@@ -99,7 +97,7 @@ On first visit, localStorage is empty. The display defaults to Calm with gold ac
 
 ## Technology
 
-Vanilla HTML, CSS, and JavaScript. No framework, no build step, no API keys. Total size: approximately 256 KB uncompressed (V1 complete, all 5 faces shipped). Deployed as static files via GitHub Pages.
+Vanilla HTML, CSS, and JavaScript. No framework, no build step, no API keys. Total size: approximately 256 KB uncompressed. Deployed as static files via GitHub Pages.
 
 Vendored libraries in `lib/` (both MIT-licensed): SunCalc for astronomical calculations, Perlin for noise generation.
 

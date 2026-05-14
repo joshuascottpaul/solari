@@ -838,12 +838,15 @@ html, body {
   white-space: nowrap;
 }
 
-/* Big-time block. Home A (default): left=90, top=560. MacroShifter writes
+/* Big-time block. Home A (default): left=140, top=560. MacroShifter writes
    left/top in stage pixels at the 6 h boundary. Cross-fade classes flip
-   opacity around the position swap. */
+   opacity around the position swap.
+   Phase 20.1: single home at left=140 (was 90; the prior value pre-dated a
+   measured-width audit of the 220 px Manrope 200 block). The macro-shift
+   timer is now skipped for Horizon, so this default is the permanent home. */
 #hz-time {
   position: absolute;
-  left: 90px;
+  left: 140px;
   top: 560px;
   font-family: 'Manrope', system-ui, sans-serif;
   font-weight: 200;
@@ -887,11 +890,14 @@ html, body {
   transition: opacity 400ms ease-in;
 }
 
-/* Status block. Right-anchored at right=90, top=580. Drift on slot. */
+/* Status block. Right-anchored at right=60, top=140. Drift on slot.
+   Phase 20.1: relocated from bottom-right to top-right to clear the
+   220 px big-time block in the lower band. Pairs with #hz-header
+   (top: 50) with a ~74 px gap. */
 #hz-status {
   position: absolute;
-  right: 90px;
-  top: 580px;
+  right: 60px;
+  top: 140px;
   text-align: right;
   font-family: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
   font-weight: 300;

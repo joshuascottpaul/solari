@@ -3,13 +3,15 @@
 | Field    | Value                              |
 |----------|------------------------------------|
 | Phase    | 19 of 20 (V1, fourth face)         |
-| Status   | Shipped                            |
+| Status   | Partial -- code shipped; webfont and picker preview deferred to V2 |
 | Shipped  | 2026-05-12                         |
 | Date     | 2026-05-12                         |
 | Author   | ariadne                            |
 | Impl     | misaka                             |
 | Depends  | Phase 16 (shipped 2026-05-07), Phase 17 (shipped 2026-05-11), Phase 18 (shipped 2026-05-12) |
 | Unblocks | Phase 20 (Horizon)                 |
+
+> **V1 rollback note (2026-05-12).** After Phase 19 merged, the user directed a deliberate rollback of two user-facing surfaces: the Cormorant Garamond 300 italic `<link>` tags were removed from `index.html` and `clockface.html`, and the Editorial picker card was left as a "COMING SOON" placeholder (`real: false` in `clockface.js`). The face object (`EditorialFace`) remains fully implemented and loads at runtime; it falls back to Georgia on both the main display and the picker preview. These two items are deferred to V2. User-facing surfaces describe Editorial as "coming soon"; internal docs describe it as "deferred to V2".
 
 ## 1. Goal
 
