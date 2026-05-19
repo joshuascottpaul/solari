@@ -4,13 +4,21 @@ Active work tracker. CLAUDE.md is for stable reference; this file is for in-flig
 
 ## V1 complete
 
-4 clockfaces shipped. Phases 16-20 complete as of 2026-05-12. Phase 20.1 patch (Horizon overlap fix) shipped 2026-05-13. Editorial code merged but user-facing surfaces deferred to V2.
+4 clockfaces shipped. Phases 16-20 complete as of 2026-05-12. Phase 20.1 patch (Horizon overlap fix) shipped 2026-05-13. Phase 22 (error trap) shipped 2026-05-18. Phase 23 (golden-hour accent + stale-data dimming) shipped 2026-05-18; bundle back under 250 KB cap at 229 KB. Editorial code merged but user-facing surfaces deferred to V2.
 
 - [x] **Phase 17: Mechanical face** -- shipped 2026-05-11. Spec at `docs/phase-17-mechanical-face.md`. Hermione approved with minor follow-ups resolved inline (ACCENT_PALETTE dual-source comment, `--type-tertiary` 60s transition fix).
 - [x] **Phase 18: Departures face** -- shipped 2026-05-12. Spec at `docs/phase-18-departures-face.md`. Five data rows, per-character KineticType cascade (110 ms stagger), gold bezel borders, face-aware DriftEngine activeKeys, MoonModule moonrise/moonset extensions.
 - [~] **Phase 19: Editorial face** -- partial. Code shipped 2026-05-12; webfont and picker live-render rolled back per user direction. Falls back to Georgia. Spec at `docs/phase-19-editorial-face.md`. V2 restore items in "Editorial -- coming soon" section below.
 - [x] **Phase 20: Horizon face** -- shipped 2026-05-12. Spec at `docs/phase-20-horizon-face.md`. Full-stage SVG diagram, sun and moon arcs, 25 hour ticks, phase-correct crescent, 1 px gold hairline cursor, 220 px Manrope 200 big-time, accentSkyTrack opt-out.
 - [x] **Phase 20.1: Horizon overlap fix** -- shipped 2026-05-13. Spec at `docs/phase-20.1-horizon-overlap-fix.md`. Status block relocated to top-right; big-time collapsed to single home at `left: 140`; `MacroShifter` time-shift disabled for Horizon (`intervalH = 0` guard).
+- [x] **Phase 22: Error trap** -- shipped 2026-05-18. Spec at `docs/phase-22-error-trap.md`. `ErrorLog` global error/unhandledrejection trap with 50-entry localStorage ring buffer; `VersionOverlay` long-press chip opens scrollable viewer.
+- [x] **Phase 23: Golden-hour accent + stale-data dimming** -- shipped 2026-05-18. Spec at `docs/phase-23-golden-hour-stale-data.md`. `SkyColorModule` golden-hour RGB-lerp of `--type-accent`; `accentSkyTrack` promoted to actively-read; `StaleMonitor` module with per-feed thresholds; bundle 229 KB.
+
+## Phase 23 follow-ups
+
+- [ ] **Staggered stale-dim apply** -- when multiple feeds cross their threshold in the same 60 s tick, `is-stale` is applied in lockstep. Visual review found the lockstep outcome gentler than feared (small accent surface); the simultaneous fades do not read as "the whole screen is dimming." File as V2 polish: offset each feed's apply by ≥2 s when more than one transitions in the same tick. Not a blocker.
+- [ ] **HSL or LCH interpolation for golden-hour lerp** -- current RGB midpoint traverses desaturated values when the user accent is a cool blue. Sub-perceptual at today's colon-sized accent surface; may become more visible if V2 face vocabulary grows the accent surface (Editorial fully shipped, future faces). Revisit interpolation space at next face-design cycle.
+- [ ] **Live-room post-merge check: sunrise vs sunset perceptual symmetry** -- implementation is altitude-anchored so the rendered `--type-accent` color is identical at sunrise and sunset. Verify on the iPad at Vancouver sunrise (~04:55) and sunset (~21:25) after merge; ambient light context may make the visual experience asymmetric even when the computed value is not. Honest sanity check, not a code issue.
 
 ## Editorial -- coming soon (V2 restore checklist)
 
@@ -67,7 +75,7 @@ Origin incident: Horizon Phase 20 assumed ~220 px rendered width for a 220 px Ma
 ## Tech debt / doc cleanups
 
 - [x] **Paper accent hex correction** -- `ACCENT_PALETTE.paper.hex` was `#F0EBDC` in the Phase 16 spec (would render identical to `--type-primary` and make the accent invisible). Corrected to `#E8E0D0` in `docs/phase-16-clockface-foundation.md` 2026-05-12. Shipped code (`app.js:126`, `clockface.js:32`) was already correct; spec only needed fixing.
-- [ ] **Bundle over 250 KB cap** -- the 250 KB uncompressed target has been exceeded since Phase 20 (full-stage `HorizonFace` SVG pushed the total past 255 KB). Phase 22 added a further ~8.3 KB (`ErrorLog` + viewer CSS), bringing the total to approximately 262.5 KB. The cap is a target, not a hard constraint; no user-visible degradation has been observed. Track headroom before V2 adds new webfonts, faces, or data files. Cormorant Garamond is not loaded in the current build (rollback per user direction); restoring it for Editorial in V2 will require a bundle audit first.
+- [x] **Bundle over 250 KB cap** -- the bundle exceeded the 250 KB target from Phase 20 through Phase 22 (~262.5 KB after Phase 22). Phase 23's simplification pass recovered headroom; bundle shipped at 229 KB. Cormorant Garamond is not loaded in the current build (Editorial webfont rollback per user direction); restoring it for Editorial in V2 will require a bundle audit first.
 - [ ] **Bundle accounting refresh** -- V1 shipped at 255,607 bytes uncompressed (all 5 faces). Cormorant Garamond font link was rolled back so the CDN load is absent for now. V2 planning: re-audit headroom before adding new webfonts or faces.
 - [ ] **ACCENT_PALETTE three-way sync** -- `ACCENT_PALETTE` in `app.js` is referenced in at least two places (main display and picker preview path); `clockface.js` carries an explicit dual-source comment. Consider extraction to a shared constant or config entry in a V2 housekeeping pass. Low priority.
 - [ ] **`data.js` placeholder** -- still in repo, still not loaded (CLAUDE.md line 18). Either delete or document intent. Low priority -> misaka, defer until next housekeeping pass.

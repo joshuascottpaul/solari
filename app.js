@@ -95,6 +95,16 @@ const CONFIG = {
     periodMin: 30,
     amplitude: 0.15
   },
+  stale: {
+    enabled: true,
+    thresholds: {
+      weather: 30 * 60 * 1000,
+      aqi:     60 * 60 * 1000,
+      tide:    12 * 60 * 60 * 1000
+    },
+    recalcMs: 60 * 1000,
+    resumeDelayMs: 60 * 1000
+  },
   observances: {
     builtInEnabled: true,
     customObservances: [
@@ -1308,6 +1318,12 @@ const MoonModule = {
 };
 
 const SkyColorModule = {
+  _GOLDEN_HOUR_TARGET: '#C9A14A',
+  _GOLDEN_HOUR_WINDOW_DEG: 6,
+  _goldenTargetRgb: null,
+  _userAccentRgb: null,
+  _userAccentHex: null,
+
   // Altitude bands: [minAlt, maxAlt, [r, g, b]]
   // Ordered from lowest altitude to highest.
   _bands: [
@@ -1365,12 +1381,36 @@ const SkyColorModule = {
     root.setProperty('--type-tertiary',
       `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.42)`);
 
-    // Phase 20: --type-accent opt-out contract. V1 has no sky-altitude
-    // modulation of --type-accent (accent is set once at boot by
-    // ClockfaceRegistry.applyAccent). When V2 adds modulation, check
-    // `ACTIVE_FACE.accentSkyTrack === false` here and skip the write for
-    // faces that opt out (HorizonFace declares `accentSkyTrack: false` so
-    // its gold cursor / colon / DAY headline stay fixed across all sky bands).
+    // Golden-hour --type-accent override. accentSkyTrack === false opts out;
+    // HorizonFace declares false so its gold cursor stays fixed.
+    if (ACTIVE_FACE && ACTIVE_FACE.accentSkyTrack !== false) {
+      const t = this._goldenHourIntensity(alt);
+      if (t === 0) {
+        if (this._userAccentHex) {
+          root.setProperty('--type-accent', this._userAccentHex);
+        }
+      } else {
+        const target = this._goldenTargetRgb ||
+          (this._goldenTargetRgb = this._hexToRgb(this._GOLDEN_HOUR_TARGET));
+        const user = this._userAccentRgb;
+        if (user) {
+          const out = this._lerp(user, target, t);
+          root.setProperty('--type-accent',
+            'rgb(' + out[0] + ', ' + out[1] + ', ' + out[2] + ')');
+        }
+      }
+    }
+  },
+
+  cacheUserAccent(hex) {
+    this._userAccentHex = hex;
+    this._userAccentRgb = this._hexToRgb(hex);
+  },
+
+  _goldenHourIntensity(altitudeDeg) {
+    const w = this._GOLDEN_HOUR_WINDOW_DEG;
+    if (altitudeDeg <= -w || altitudeDeg >= w) return 0;
+    return 0.5 * (1 + Math.cos(Math.PI * altitudeDeg / w));
   },
 
   _applyWeatherMod(rgb, [satMult, lightAdd, hueAdd]) {
@@ -1954,6 +1994,8 @@ const RefresherCycle = {
     const hold = CONFIG.refresher.holdSec * 1000;
     const el = this._overlay;
 
+    StaleMonitor._suspend();
+
     // Step 1: fade to opaque (CSS transition handles the ramp)
     el.style.opacity = '1';
 
@@ -1965,6 +2007,11 @@ const RefresherCycle = {
       setTimeout(() => {
         this._schedule();
         ResilienceManager.softReload();
+        // Defer resume to avoid an instant snap-to-stale at refresher exit.
+        StaleMonitor._resumeTimerId = setTimeout(
+          () => StaleMonitor._resume(),
+          CONFIG.stale.resumeDelayMs
+        );
       }, fade);
     }, fade + hold);
   }
@@ -1985,6 +2032,102 @@ const LuminanceBreath = {
     const t = Date.now() / 1000;
     const mod = 1 + amp * Math.sin(2 * Math.PI * t / periodSec);
     document.documentElement.style.setProperty('--lum-mod', mod.toFixed(4));
+  }
+};
+
+// Phase 23: per-feed stale-data dimming. Alerts are exempt by lock.
+const StaleMonitor = {
+  _FEEDS: ['weather', 'aqi', 'tide'],
+  _intervalId: null,
+  _suspended: false,
+  _resumeTimerId: null,
+  _recoveryTimers: Object.create(null),
+
+  start() {
+    if (!CONFIG.stale.enabled) return;
+    this.update();
+    this._intervalId = setInterval(() => this.update(), CONFIG.stale.recalcMs);
+  },
+
+  stop() {
+    if (this._intervalId !== null) {
+      clearInterval(this._intervalId);
+      this._intervalId = null;
+    }
+  },
+
+  update() {
+    if (this._suspended) return;
+    const now = Date.now();
+    const lu = (AppState.meta && AppState.meta.lastUpdate) || {};
+    const thresholds = CONFIG.stale.thresholds;
+    for (let i = 0; i < this._FEEDS.length; i++) {
+      const feed = this._FEEDS[i];
+      const ts = lu[feed];
+      // No timestamp yet: treat as fresh; the fetcher will write on success.
+      const isStale = (typeof ts === 'number') && (now - ts) > thresholds[feed];
+      this._applyForFeed(feed, isStale);
+    }
+  },
+
+  _applyForFeed(feed, isStale) {
+    const nodes = document.querySelectorAll('[data-feed="' + feed + '"]');
+    if (nodes.length === 0) return;
+    let anyTransitionedFresh = false;
+    for (let i = 0; i < nodes.length; i++) {
+      const el = nodes[i];
+      const wasStale = el.classList.contains('is-stale');
+      if (isStale && !wasStale) {
+        el.classList.add('is-stale');
+        el.classList.remove('is-recovering');
+      } else if (!isStale && wasStale) {
+        el.classList.add('is-recovering');
+        el.classList.remove('is-stale');
+        anyTransitionedFresh = true;
+      }
+    }
+    if (anyTransitionedFresh) {
+      if (this._recoveryTimers[feed] !== undefined) {
+        clearTimeout(this._recoveryTimers[feed]);
+      }
+      this._recoveryTimers[feed] = setTimeout(() => {
+        delete this._recoveryTimers[feed];
+        const ns = document.querySelectorAll('[data-feed="' + feed + '"]');
+        for (let i = 0; i < ns.length; i++) {
+          ns[i].classList.remove('is-recovering');
+        }
+      }, 8000);
+    }
+  },
+
+  _suspend() {
+    this._suspended = true;
+    if (this._resumeTimerId !== null) {
+      clearTimeout(this._resumeTimerId);
+      this._resumeTimerId = null;
+    }
+    this.stop();
+    for (let i = 0; i < this._FEEDS.length; i++) {
+      const feed = this._FEEDS[i];
+      const nodes = document.querySelectorAll('[data-feed="' + feed + '"]');
+      for (let j = 0; j < nodes.length; j++) {
+        nodes[j].classList.remove('is-stale');
+        nodes[j].classList.remove('is-recovering');
+      }
+      if (this._recoveryTimers[feed] !== undefined) {
+        clearTimeout(this._recoveryTimers[feed]);
+        delete this._recoveryTimers[feed];
+      }
+    }
+  },
+
+  _resume() {
+    this._suspended = false;
+    this._resumeTimerId = null;
+    if (CONFIG.stale.enabled && this._intervalId === null) {
+      this.update();
+      this._intervalId = setInterval(() => this.update(), CONFIG.stale.recalcMs);
+    }
   }
 };
 
@@ -2628,6 +2771,8 @@ const Stage = {
 // DisplayModule's existing render path; faces are pure renderers (no AppState
 // mutation, no timers). teardown() is reserved for Phases 17-20 hot-swap.
 const CalmFace = {
+  accentSkyTrack: true,
+
   init(stage) {
     // The stage already contains #time, #date, #slot, #moon-disc (declared
     // statically in index.html). DisplayModule init queries these IDs and
@@ -2658,6 +2803,8 @@ const CalmFace = {
 // is removed first so DisplayModule.init() does not bind to dead nodes.
 // All inner state is local (DOM handles, gating keys); no AppState writes.
 const MechanicalFace = {
+  accentSkyTrack: true,
+
   _els: null,
   _lastPhaseIndex: null,
   _lastSecond: null,
@@ -2888,6 +3035,7 @@ const MechanicalFace = {
       var key = order[i];
       var cell = this._els.cells[i];
       if (!cell) continue;
+      this._setCellFeed(cell, key);
       var hash = this._cellHash(key, state, timeFormat);
       if (!force && cell._mechHash === hash) continue;
       cell._mechHash = hash;
@@ -2898,6 +3046,13 @@ const MechanicalFace = {
       if (labelEl) labelEl.textContent = this._columnLabels[key] || '';
       if (valueEl) valueEl.innerHTML = this._cellHtml(key, state, timeFormat);
     }
+  },
+
+  _COL_FEED: { temp: 'weather', air: 'aqi', tide: 'tide' },
+  _setCellFeed(cell, key) {
+    var feed = this._COL_FEED[key];
+    if (feed) cell.setAttribute('data-feed', feed);
+    else cell.removeAttribute('data-feed');
   },
 
   _crossfadeColumns(phaseIdx, state, timeFormat) {
@@ -2922,7 +3077,10 @@ const MechanicalFace = {
             if (labelEl) labelEl.textContent = self._columnLabels[key] || '';
             if (valueEl) valueEl.innerHTML = self._cellHtml(key, state, timeFormat);
             cell._mechHash = self._cellHash(key, state, timeFormat);
+            self._setCellFeed(cell, key);
             inner.classList.remove('is-fading');
+            // Reapply stale state after the last column rotation completes.
+            if (idx === 4) StaleMonitor.update();
           }, 300);
         }, idx * 60);
       })(i);
@@ -3069,6 +3227,10 @@ const MechanicalFace = {
 // inside #stage in init(); removes Calm-shaped nodes first so DisplayModule
 // does not bind to dead handles. All inner state is local; no AppState writes.
 const DeparturesFace = {
+  // --bezel-accent is structural chrome (separate variable); SkyColorModule
+  // never writes it, so golden-hour lerp only affects --type-accent.
+  accentSkyTrack: true,
+
   _els: null,
   _lastRowEpoch: -1,
   _lastRowHashes: ['', '', '', '', ''],
@@ -3144,7 +3306,7 @@ const DeparturesFace = {
         '</div>' +
         '<div id="dep-status">' +
           '<div class="dep-status-now">NOW · ---</div>' +
-          '<div class="dep-status-weather">---</div>' +
+          '<div class="dep-status-weather" data-feed="weather">---</div>' +
           '<div class="dep-status-next">---</div>' +
         '</div>' +
       '</div>' +
@@ -3153,8 +3315,8 @@ const DeparturesFace = {
       '</div>' +
       '<div id="dep-board">' + rowsHtml + '</div>' +
       '<div id="dep-footer">' +
-        '<span class="dep-footer-weather">---</span>' +
-        '<span class="dep-footer-air">---</span>' +
+        '<span class="dep-footer-weather" data-feed="weather">---</span>' +
+        '<span class="dep-footer-air" data-feed="aqi">---</span>' +
         '<span class="dep-footer-alerts">---</span>' +
       '</div>';
     stage.appendChild(root);
@@ -3669,6 +3831,8 @@ const DeparturesFace = {
 // nodes first so DisplayModule does not bind to dead handles. All inner
 // state is local; no AppState writes.
 const EditorialFace = {
+  accentSkyTrack: true,
+
   _els: null,
   _lastMinuteKey: null,         // 'timeFormat|HH:MM|ampm'; gates time + kicker repaint
   _lastIsoDate: null,           // gates weekday/month-day repaint
@@ -3743,9 +3907,9 @@ const EditorialFace = {
       '</div>' +
       '<div id="ed-paragraph"><div id="ed-paragraph-inner"></div></div>' +
       '<div id="ed-footer">' +
-        '<div class="ed-foot-cell"><div class="ed-foot-label">Tide</div><div class="ed-foot-value"></div></div>' +
-        '<div class="ed-foot-cell"><div class="ed-foot-label">Air</div><div class="ed-foot-value"></div></div>' +
-        '<div class="ed-foot-cell"><div class="ed-foot-label">Sun</div><div class="ed-foot-value"></div></div>' +
+        '<div class="ed-foot-cell" data-feed="tide"><div class="ed-foot-label">Tide</div><div class="ed-foot-value"></div></div>' +
+        '<div class="ed-foot-cell" data-feed="aqi"><div class="ed-foot-label">Air</div><div class="ed-foot-value"></div></div>' +
+        '<div class="ed-foot-cell" data-feed="weather"><div class="ed-foot-label">Sun</div><div class="ed-foot-value"></div></div>' +
         '<div class="ed-foot-cell"><div class="ed-foot-label">Almanac</div><div class="ed-foot-value"></div></div>' +
       '</div>';
     stage.appendChild(root);
@@ -4299,11 +4463,11 @@ const HorizonFace = {
         '<span class="hz-ampm" hidden></span>' +
       '</div>' +
       '<div id="hz-status">' +
-        '<div class="hz-status-headline"></div>' +
+        '<div class="hz-status-headline" data-feed="weather"></div>' +
         '<div class="hz-status-golden"></div>' +
         '<div class="hz-status-moon"></div>' +
-        '<div class="hz-status-tide"></div>' +
-        '<div class="hz-status-air"></div>' +
+        '<div class="hz-status-tide" data-feed="tide"></div>' +
+        '<div class="hz-status-air" data-feed="aqi"></div>' +
       '</div>';
     stage.appendChild(root);
 
@@ -4926,6 +5090,7 @@ window.ClockfaceRegistry = ClockfaceRegistry;
   // paint already reflects them. SkyColorModule.update() and DriftEngine.start()
   // will continue from these floor values.
   ClockfaceRegistry.applyAccent(TWEAKS.accent);
+  SkyColorModule.cacheUserAccent((ACCENT_PALETTE[TWEAKS.accent] || ACCENT_PALETTE.gold).hex);
   ClockfaceRegistry.applyDriftIntensity(TWEAKS.driftIntensity);
   // Phase 18: seed --bezel-accent once from the accent palette. SkyColorModule
   // never touches this variable; the bezel is structural chrome.
@@ -4964,6 +5129,7 @@ window.ClockfaceRegistry = ClockfaceRegistry;
   LuminanceBreath.start();          // Phase 14: luminance breath
   ObservanceModule.start();        // Phase 15: observances (before RotatorModule.start so data is set for first rotation tick)
   RotatorModule.start();           // begins rotation timers (after data modules)
+  StaleMonitor.start();            // Phase 23: per-feed stale-data dimming
 
   // Phase 16: cross-tab Apply. The picker writes the three keys; this listener
   // reloads the display so the new face/tweaks take effect on a clean boot.
