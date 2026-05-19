@@ -956,3 +956,16 @@ html, body {
 .hz-status-headline.is-day   { color: var(--type-accent); }
 .hz-status-headline.is-night { color: var(--type-secondary); }
 .hz-status-air               { opacity: 0.7; }
+
+/* Phase 23: per-feed stale-data dimming. Slow fade out (30 s) reads as
+   "fading patience"; fast fade in (8 s) reads as "back". The recovery
+   class is applied for one 8 s window after the feed refreshes; the JS
+   removes both classes once the recovery transition completes. */
+[data-feed].is-stale {
+  opacity: 0.6;
+  transition: opacity 30s linear;
+}
+[data-feed].is-recovering {
+  opacity: 1;
+  transition: opacity 8s linear;
+}
