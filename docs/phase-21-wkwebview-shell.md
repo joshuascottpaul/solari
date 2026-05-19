@@ -3,12 +3,63 @@
 | Field    | Value                                                            |
 |----------|------------------------------------------------------------------|
 | Phase    | 21 (post-V1, platform delivery)                                  |
-| Status   | Draft                                                            |
-| Date     | 2026-05-15                                                       |
+| Status   | Draft -- awaiting Section 0 prerequisites                        |
+| Date     | 2026-05-15 (created), 2026-05-19 (pre-flight checklist added, Phase 22-25 deltas folded in) |
 | Author   | ariadne                                                          |
 | Impl     | misaka                                                           |
-| Depends  | Phase 20.1 (Horizon overlap fix, shipped 2026-05-13). V1 feature set frozen. |
+| Depends  | Phase 20.1 (Horizon overlap fix, shipped 2026-05-13). V1 feature set frozen. Phase 25 HEAD is what the shell bundles. |
 | Unblocks | Apple TV deployment. iPad TestFlight install path that survives Safari lifecycle. |
+| Arc      | Ripley 8-wins win #5 of 8. See `todo.md` for arc state.          |
+
+## 0. Pre-Flight Checklist (user actions, blocks misaka)
+
+These items gate the implementation pass. They are user-side work that Claude cannot perform: accounts, payments, certificates, icon design, device configuration. Section 0 is the actionable view; Sections 3.4, 7.1, and 16 contain the full reasoning for each item.
+
+When every box in Section 0 is checked, misaka has a green-light path through Sections 7.2 through 7.8. Until then, do not start the Xcode workspace.
+
+### 0.1 Apple ecosystem (blocks everything)
+
+- [ ] Apple Developer Program enrollment active ($99/yr). Verify at https://developer.apple.com/account/.
+- [ ] App Store Connect account active (same Apple ID as Developer Program).
+- [ ] Two bundle IDs registered:
+  - iOS: `com.neocode.solari.ios` (or user-chosen; record exact string here once decided)
+  - tvOS: `com.neocode.solari.tvos` (or user-chosen; record exact string here once decided)
+  - Discipline rule (Section 4.5): bundle IDs stay stable across all rebuilds. A change breaks localStorage parity at TestFlight reinstall.
+- [ ] Distribution certificate issued and installed in the local keychain.
+- [ ] Two TestFlight internal-test provisioning profiles downloaded:
+  - iOS provisioning profile
+  - tvOS provisioning profile
+
+### 0.2 App Store Connect records (blocks first upload)
+
+- [ ] iOS app record created, linked to the iOS bundle ID.
+- [ ] tvOS app record created, linked to the tvOS bundle ID.
+- [ ] App Privacy answers filled in on both records: "no data collected" on every category.
+- [ ] Export compliance prepared: answer "No" to "uses non-standard crypto" at first upload (`ITSAppUsesNonExemptEncryption = false` in both Info.plist files).
+- [ ] Internal-test group created in each app record (developer's own Apple ID as the only tester is sufficient).
+
+### 0.3 Assets (blocks Xcode build)
+
+- [ ] iOS app icon set per Apple HIG (20pt @2x, 29pt @2x, 40pt @2x, 60pt @2x and @3x, 76pt @1x and @2x, 83.5pt @2x) plus 1024 px marketing icon.
+- [ ] tvOS layered App Icon: small (400 x 240) and large (1280 x 768), each with front, middle, back layers.
+- [ ] tvOS top-shelf image (1920 x 720). Static black is the simplest option; a frozen Calm-face render is the on-brand option.
+- [ ] iOS Launch Screen Storyboard (a black background suffices; Solari's first paint is near-black, so a black launch screen avoids a flash).
+- [ ] Icon design confirmed: spec recommends an off-white circle on black (echo of the Calm moon disc). User confirms or proposes alternative.
+
+### 0.4 Device configuration (blocks acceptance)
+
+- [ ] iPad Air M4 signed in to the same Apple ID as the Developer Program; TestFlight app installed.
+- [ ] Apple TV 4K signed in to the same Apple ID; TestFlight app installed.
+- [ ] Apple TV screen-saver timeout set to **Never** (Settings > General > Screen Saver > Start After > Never). `isIdleTimerDisabled` does not override the system screen saver on tvOS; this manual device step is required for the always-on guarantee.
+
+### 0.5 Decisions to lock before Xcode
+
+- [ ] Bundle ID strings finalized (see 0.1).
+- [ ] Icon design finalized (see 0.3).
+- [ ] Top-shelf image content finalized (static black or rendered Calm face).
+- [ ] Acceptance of the manual "screen saver = Never" step on Apple TV.
+
+When all five subsections above are checked, signal misaka to begin Section 7.2.
 
 ## 1. Goal
 
@@ -165,6 +216,19 @@ Reasoning:
 - The risk case is a bundle-ID change or signing-identity change between rebuilds, which would cause iOS to treat the new build as a different app and start a fresh container. The fix is to keep the bundle ID stable across all rebuilds. This is a discipline rule for the developer, not a design decision.
 
 Implementation: written as an acceptance criterion (see Section 11). Manual test: install build N, change face from Calm to Mechanical via the picker, install build N+1 from TestFlight (a fresh upload, not a delta update), launch, confirm Mechanical is still active. Repeat with a tweak (accent change) and an observance custom date. Test on both iPad and Apple TV separately.
+
+**localStorage keys to verify across reinstall** (current as of Phase 25 HEAD, 2026-05-19):
+
+- `solari.clockface` -- active face selection (reload trigger)
+- `solari.clockface.tweaks` -- accent and drift-intensity tweaks (reload trigger)
+- `solari.clockface.applied_at` -- last picker Apply timestamp (reload trigger)
+- `solari.errorLog` -- Phase 22 50-entry error ring buffer (no reload trigger; informational)
+- `solari.shuffle` -- Phase 24 shuffle mode: `off` / `weekday` / `random` (read at boot only)
+- `solari.shuffle.lastPicked` -- Phase 24 random-mode last selection (read at boot only)
+- `solari.shuffle.overrideUntilNextBoot` -- Phase 24 6 h override grace stamp (read at boot only)
+- `solari.firstBoot.calmPulseShown` -- Phase 24 one-time Calm pulse gate (read at Calm.init only)
+
+Acceptance test for storage parity must verify all eight keys survive a TestFlight reinstall, not just the three reload-trigger keys. The Phase 24 keys in particular guard one-time behaviors (the Calm first-boot pulse should not re-fire after a reinstall, since the user has already seen it).
 
 ## 5. Architecture
 
@@ -680,12 +744,14 @@ Phase 21 ships when all of the following are verified on the actual iPad Air M4 
    - device reboot
    - app update (bump build number, re-upload, reinstall)
    - 90 d TestFlight reinstall (verified on the second reinstall cycle, or simulated by uninstalling and reinstalling from the same TestFlight build record)
+
+   The full localStorage-key set to verify across the reinstall path is listed in Section 4.5. In particular: `solari.firstBoot.calmPulseShown` must survive so the first-boot moon pulse does not re-fire after each TestFlight reinstall; `solari.errorLog` must survive so the error ring buffer is not erased on each rebuild.
 10. The version overlay (tap moon disc) renders. On the bundled-shell install with no network or after the GitHub API call fails, the overlay shows the cached/last-known hash gracefully (no crash, no infinite spinner).
 11. 72 h yuki endurance soak on iPad: heap stable, DOM count stable, no fetch failures unhandled by ResilienceManager, burn-in oscillation visibly active (drift visible to a 5-frame-difference compare).
 12. 72 h yuki endurance soak on Apple TV: same heap/DOM/fetch/oscillation checks, repeated on tvOS. tvOS is a new platform for Solari; this run is non-optional.
 13. Hermione's review confirms the shell does not regress any of the eight burn-in layers (Section 9).
 14. The web bundle inside the shell is byte-identical to the master branch at the time of build, except for the `tabindex="0"` addition to face cards in `clockface.html`. This is the only intentional difference.
-15. Bundle size: the web bundle remains under the 250 KB SDD target (the `tabindex` edit is a few bytes). The native shell adds approximately 50-100 KB of compiled Swift code, which is a separate ledger and does not count against the 250 KB web target.
+15. Bundle size: the web bundle remains under the 250 KB SDD target (Phase 25 HEAD measured 228 KB; the `tabindex` edit is a few bytes). The native shell adds approximately 50-100 KB of compiled Swift code, which is a separate ledger and does not count against the 250 KB web target.
 16. App Privacy nutrition label declares "no data collected" on both platforms.
 
 ## 12. Pipeline Plan

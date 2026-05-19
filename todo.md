@@ -2,6 +2,27 @@
 
 Active work tracker. CLAUDE.md is for stable reference; this file is for in-flight items.
 
+## Ripley 8-wins arc (in progress -- 4 of 8 shipped)
+
+A ranked list of small-effort high-impact wins ripley identified to make Solari "epic" post-V1. The remaining 4 are sequenced 5 -> 7 -> 8; #6 (error trap) already shipped as Phase 22. Resume here at the start of each session.
+
+| # | Win                                | Status                                   |
+|---|------------------------------------|------------------------------------------|
+| 1 | Stale-data dimming                 | **Shipped: Phase 23** (StaleMonitor)     |
+| 2 | Golden-hour accent                 | **Shipped: Phase 23**                    |
+| 3 | Horizon arc trails                 | **Shipped: Phase 25**                    |
+| 4 | Discovery polish bundle            | **Shipped: Phase 24** (whisper / shuffle / Calm pulse) |
+| 5 | WKWebView shell (iOS + tvOS)       | **Next.** Spec at `docs/phase-21-wkwebview-shell.md`; pre-flight checklist added 2026-05-19; gated on user-side prerequisites (Apple Developer Program, bundle IDs, icons, App Store Connect records). Misaka cannot start until the checklist's Section 0 items are checked off. |
+| 6 | Error-trap viewer                  | **Shipped: Phase 22**                    |
+| 7 | Endurance-loop telemetry surface   | Pending. Extend ErrorLog viewer with a second tab for yuki's heap/DOM/fetch counters. No new UI primitive, no new storage key. |
+| 8 | Picker discoverability             | Pending. Single visible affordance (corner glyph or boot hint) for the long-press-on-moon-disc gesture; gated by `localStorage.solari.firstBoot.pickerHintShown`. |
+
+**Sequencing constraints:** #5 must precede #7 and #8 because host platform (iPad PWA vs. WKWebView shell vs. tvOS) affects both viewer gestures and picker affordances. #7 should precede #8 because yuki's telemetry may surface undiscoverability problems that change #8's design. Order: 5 -> 7 -> 8.
+
+**Items aged out / superseded:** face-specific observance accent palettes (superseded by Phase 23 golden-hour modulation); per-face cross-fade time transitions (removed as orphan code in 2026-05-14 motoko audit).
+
+**What "drive Phase 21" looks like:** the spec is already complete (ariadne wrote it 2026-05-15). Session work in this arc is the pre-flight checklist + Phase 22-25 storage-key delta. Native code waits on prerequisites.
+
 ## V1 complete
 
 4 clockfaces shipped. Phases 16-20 complete as of 2026-05-12. Phase 20.1 patch (Horizon overlap fix) shipped 2026-05-13. Phase 22 (error trap) shipped 2026-05-18. Phase 23 (golden-hour accent + stale-data dimming) shipped 2026-05-18; bundle back under 250 KB cap at 229 KB. Phase 24 (discovery polish: meteor whisper, face shuffle, Calm pulse) shipped 2026-05-19; bundle 240 KB. Phase 25 (Horizon arc trails) shipped 2026-05-19; bundle 228 KB. Editorial code merged but user-facing surfaces deferred to V2.
