@@ -91,13 +91,24 @@ Tap Apply (gold button) to save. The main display reloads automatically within 2
 
 On desktop you can navigate with ArrowUp / ArrowDown, j / k, or PageUp / PageDown. Escape closes the tweaks panel.
 
+### Face shuffle (advanced)
+
+Add `?shuffle=weekday` or `?shuffle=random` to the URL to enable automatic face selection on each boot or 03:00 soft reload.
+
+- `weekday` maps each day of the week to a face (Sun/Sat=Calm, Mon/Thu=Mechanical, Tue/Fri=Departures, Wed=Horizon).
+- `random` picks from the four faces, excluding the previous pick.
+
+The URL parameter is saved to `localStorage.solari.shuffle` and persists across boots. A manual picker Apply overrides the next shuffle for six hours so deliberate picks survive the day's 03:00 reload. Editorial is excluded from both pools in V1.
+
+To disable shuffle, run `localStorage.removeItem('solari.shuffle')` in DevTools and reload.
+
 ### First-run defaults
 
 On first visit, localStorage is empty. The display defaults to Calm with gold accent and normal drift intensity.
 
 ## Technology
 
-Vanilla HTML, CSS, and JavaScript. No framework, no build step, no API keys. Total size: approximately 256 KB uncompressed. Deployed as static files via GitHub Pages.
+Vanilla HTML, CSS, and JavaScript. No framework, no build step, no API keys. Total size: approximately 240 KB uncompressed. Deployed as static files via GitHub Pages.
 
 Vendored libraries in `lib/` (both MIT-licensed): SunCalc for astronomical calculations, Perlin for noise generation.
 

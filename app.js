@@ -350,6 +350,10 @@ const AppState = {
   },
   observance: null,
   // When active: { name, glyph, treatment, palette, slotEntry, dateString }
+  meteorWhisper: null,
+  // Phase 24: { treatment: 'light', name_long: <string> } during 22:00-04:00
+  // local Vancouver on a tracked meteor-shower peak night. Suppressed when
+  // AppState.observance is non-null. Editorial reads observance || meteorWhisper.
   meta: {
     bootedAt: null,
     lastUpdate: {}
@@ -1072,7 +1076,12 @@ const ObservanceModule = {
   update() {
     const now = new Date();
     const todayISO = AppState.date.isoDate;
-    if (todayISO === this._lastDate) return;  // already resolved today
+    if (todayISO === this._lastDate) {
+      // Same day: re-evaluate only the meteor whisper (its 22:00-04:00 window
+      // crosses midnight and shifts within the day; observance does not).
+      this._updateMeteorWhisper(now);
+      return;
+    }
     this._lastDate = todayISO;
 
     const year = now.getFullYear();
@@ -1126,8 +1135,65 @@ const ObservanceModule = {
       AppState.observance = null;
     }
 
+    this._updateMeteorWhisper(now);
+
     SkyColorModule.update();
     RotatorModule.refresh();
+  },
+
+  _updateMeteorWhisper(now) {
+    // Observance always wins precedence.
+    if (AppState.observance) {
+      AppState.meteorWhisper = null;
+      return;
+    }
+    AppState.meteorWhisper = this._meteorWhisperFor(now);
+  },
+
+  _meteorWhisperFor(now) {
+    const hour = now.getHours();
+    // Window: 22:00-04:00 local. Outside the window, no whisper.
+    if (hour >= 4 && hour < 22) return null;
+
+    const events = (typeof AlmanacModule !== 'undefined' && AlmanacModule._events) || null;
+    if (!events || !events.length) return null;
+
+    const night = this._nightDate(now);
+    for (let i = 0; i < events.length; i++) {
+      const e = events[i];
+      if (!this._isShowerEntry(e)) continue;
+      const start = e.peakStart || e.date;
+      const end   = e.peakEnd   || e.date;
+      if (night >= start && night <= end) {
+        const long = e.name_long || this._WHISPER_LONG[e.name];
+        if (!long) return null;
+        return { treatment: 'light', name_long: long };
+      }
+    }
+    return null;
+  },
+
+  _isShowerEntry(entry) {
+    return !!(entry && entry.name && this._SHOWER_NAME_RE.test(entry.name));
+  },
+
+  _nightDate(now) {
+    const d = new Date(now.getTime());
+    if (d.getHours() < 4) d.setDate(d.getDate() - 1);
+    return d.getFullYear() + '-' +
+           String(d.getMonth() + 1).padStart(2, '0') + '-' +
+           String(d.getDate()).padStart(2, '0');
+  },
+
+  _SHOWER_NAME_RE: /^(QUADRANTID|LYRID|ETA AQUARIID|PERSEID|ORIONID|GEMINID)\s+PEAK$/i,
+
+  _WHISPER_LONG: {
+    'QUADRANTID PEAK':   'Quadrantid meteor shower, peak tonight.',
+    'LYRID PEAK':        'Lyrid meteor shower, peak tonight.',
+    'ETA AQUARIID PEAK': 'Eta Aquariid meteor shower, peak tonight.',
+    'PERSEID PEAK':      'Perseid meteor shower, peak tonight.',
+    'ORIONID PEAK':      'Orionid meteor shower, peak tonight.',
+    'GEMINID PEAK':      'Geminid meteor shower, peak tonight.'
   },
 
   active()        { return AppState.observance; },
@@ -2779,7 +2845,10 @@ const CalmFace = {
     // caches handles; CalmFace simply confirms presence. If a future face
     // needs to rebuild the subtree, teardown() will be its hook.
     if (!stage) return;
-    // No-op: shipped element IDs are already present.
+    // Phase 24: first-boot moon pulse. Suppressed under the picker boot guard
+    // (boot IIFE returns early on SOLARI_PICKER, so this init is unreachable
+    // there); explicit check is defense in depth.
+    if (!window.SOLARI_PICKER) this._maybeFirstPulse(stage);
   },
 
   render() {
@@ -2793,6 +2862,48 @@ const CalmFace = {
   teardown() {
     // Reserved for Phase 17-20 hot-swap. Phase 16 face changes go through
     // full reload via the storage event; teardown is never called.
+  },
+
+  _maybeFirstPulse(stage) {
+    try {
+      if (localStorage.getItem('solari.firstBoot.calmPulseShown') === '1') return;
+    } catch (e) {
+      return;
+    }
+    const disc = stage.querySelector('#moon-disc') || document.getElementById('moon-disc');
+    if (!disc) return;
+    // Set the gate immediately (before the first opacity write) so a crash
+    // mid-pulse does not re-fire on the next boot.
+    try { localStorage.setItem('solari.firstBoot.calmPulseShown', '1'); } catch (e) {}
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        CalmFace._runPulse(disc);
+      });
+    });
+  },
+
+  _runPulse(el) {
+    // Inline `transition` overrides MacroShifter's inline `transition: none`
+    // on this same element; a CSS-class rule loses to that inline by specificity.
+    el.classList.add('is-first-pulse');
+    el.style.transition = 'opacity 800ms cubic-bezier(0.4, 0, 0.2, 1)';
+    let stage = 0;
+    const onEnd = function (ev) {
+      if (ev.propertyName !== 'opacity') return;
+      stage += 1;
+      if (stage === 1) {
+        el.style.opacity = '1';
+      } else {
+        el.removeEventListener('transitionend', onEnd);
+        el.classList.remove('is-first-pulse');
+        el.style.opacity = '';
+        el.style.transition = '';
+      }
+    };
+    el.addEventListener('transitionend', onEnd);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { el.style.opacity = '0.55'; });
+    });
   }
 };
 
@@ -4029,13 +4140,16 @@ const EditorialFace = {
   // ---- Per-sub-render helpers ----
 
   _renderDropline(state) {
-    var obs = state.observance;
+    // Phase 24: observance takes precedence; if absent, the meteor-whisper
+    // entry (already gated by ObservanceModule on null observance) feeds the
+    // same render branch. Both objects share { treatment, name_long }.
+    var src = state.observance || state.meteorWhisper;
     var key;
-    if (obs && obs.treatment === 'light' && obs.name_long) {
-      key = obs.name + '|' + obs.name_long;
+    if (src && src.treatment === 'light' && src.name_long) {
+      key = (src.name || 'whisper') + '|' + src.name_long;
       if (key === this._lastObservanceName) return;
       this._lastObservanceName = key;
-      this._els.dropline.textContent = obs.name_long;
+      this._els.dropline.textContent = src.name_long;
       this._els.dropline.style.display = '';
     } else {
       if (this._lastObservanceName === null) return;
@@ -5068,12 +5182,70 @@ window.EditorialFace = EditorialFace;     // Phase 19
 window.HorizonFace = HorizonFace;         // Phase 20
 window.ClockfaceRegistry = ClockfaceRegistry;
 
+// Phase 24: boot-time face shuffle. Reads solari.shuffle and resolves to a
+// concrete face id written into solari.clockface, before the boot IIFE reads
+// it. The picker writes solari.shuffle.overrideUntilNextBoot on Apply; that
+// override survives reloads within a 6 h grace window (typically a same-day
+// pick that should outlast a refresher-cycle restart). Editorial is excluded
+// from both shuffle pools in V1.
+const SHUFFLE_POOL = ['calm', 'mechanical', 'departures', 'horizon'];
+const SHUFFLE_WEEKDAY = ['calm', 'mechanical', 'departures', 'horizon', 'mechanical', 'departures', 'calm'];
+// JS getDay(): 0=Sun, 1=Mon, ..., 6=Sat
+// Locked map:    Sun=calm, Mon=mech, Tue=dep, Wed=hor, Thu=mech, Fri=dep, Sat=calm
+
+function _resolveShuffle() {
+  try {
+    // Override grace window: a manual picker Apply preempts shuffle for 6h.
+    // Flag self-cleans only when the window has expired, so back-to-back
+    // boots inside the grace continue to honor the pick.
+    const overrideRaw = localStorage.getItem('solari.shuffle.overrideUntilNextBoot');
+    if (overrideRaw) {
+      const overrideMs = Date.parse(overrideRaw);
+      if (!isNaN(overrideMs) && (Date.now() - overrideMs) < 6 * 60 * 60 * 1000) {
+        return;
+      }
+      localStorage.removeItem('solari.shuffle.overrideUntilNextBoot');
+    }
+
+    const urlParam = new URLSearchParams(window.location.search).get('shuffle');
+    if (urlParam) {
+      try { localStorage.setItem('solari.shuffle', urlParam); } catch (e) {}
+    }
+
+    const rawMode = localStorage.getItem('solari.shuffle');
+    const mode = (rawMode === 'weekday' || rawMode === 'random' || rawMode === 'off') ? rawMode : null;
+    if (rawMode && mode === null) {
+      console.warn('shuffle: unknown mode "' + rawMode + '"; treating as off');
+    }
+    if (!mode || mode === 'off') return;
+
+    let pick = null;
+    if (mode === 'weekday') {
+      pick = SHUFFLE_WEEKDAY[new Date().getDay()];
+    } else {
+      const last = localStorage.getItem('solari.shuffle.lastPicked');
+      const pool = SHUFFLE_POOL.filter(function (id) { return id !== last; });
+      const candidates = pool.length ? pool : SHUFFLE_POOL;
+      pick = candidates[Math.floor(Math.random() * candidates.length)];
+      localStorage.setItem('solari.shuffle.lastPicked', pick);
+    }
+    if (pick) localStorage.setItem('solari.clockface', pick);
+  } catch (e) {
+    console.warn('shuffle: resolution failed', e);
+  }
+}
+
 (function boot() {
   // Phase 17: picker boot guard. When app.js loads inside clockface.html, the
   // picker has set window.SOLARI_PICKER = true to suppress fetchers, timers,
   // the render loop, and the storage-event reload. Face class objects above
   // are already exported on window for the picker to drive directly.
   if (window.SOLARI_PICKER) return;
+
+  // Phase 24: boot-time face shuffle. Resolves solari.clockface in-place
+  // before ClockfaceRegistry.resolve() reads it. Same-tab setItem does not
+  // fire the storage listener installed below.
+  _resolveShuffle();
 
   // Phase 16: read storage and resolve face + tweaks
   ACTIVE_FACE_ID = localStorage.getItem('solari.clockface') || CONFIG.clockface.defaultFaceId;

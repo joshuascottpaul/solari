@@ -4,7 +4,7 @@ Active work tracker. CLAUDE.md is for stable reference; this file is for in-flig
 
 ## V1 complete
 
-4 clockfaces shipped. Phases 16-20 complete as of 2026-05-12. Phase 20.1 patch (Horizon overlap fix) shipped 2026-05-13. Phase 22 (error trap) shipped 2026-05-18. Phase 23 (golden-hour accent + stale-data dimming) shipped 2026-05-18; bundle back under 250 KB cap at 229 KB. Editorial code merged but user-facing surfaces deferred to V2.
+4 clockfaces shipped. Phases 16-20 complete as of 2026-05-12. Phase 20.1 patch (Horizon overlap fix) shipped 2026-05-13. Phase 22 (error trap) shipped 2026-05-18. Phase 23 (golden-hour accent + stale-data dimming) shipped 2026-05-18; bundle back under 250 KB cap at 229 KB. Phase 24 (discovery polish: meteor whisper, face shuffle, Calm pulse) shipped 2026-05-19; bundle 240 KB. Editorial code merged but user-facing surfaces deferred to V2.
 
 - [x] **Phase 17: Mechanical face** -- shipped 2026-05-11. Spec at `docs/phase-17-mechanical-face.md`. Hermione approved with minor follow-ups resolved inline (ACCENT_PALETTE dual-source comment, `--type-tertiary` 60s transition fix).
 - [x] **Phase 18: Departures face** -- shipped 2026-05-12. Spec at `docs/phase-18-departures-face.md`. Five data rows, per-character KineticType cascade (110 ms stagger), gold bezel borders, face-aware DriftEngine activeKeys, MoonModule moonrise/moonset extensions.
@@ -13,6 +13,13 @@ Active work tracker. CLAUDE.md is for stable reference; this file is for in-flig
 - [x] **Phase 20.1: Horizon overlap fix** -- shipped 2026-05-13. Spec at `docs/phase-20.1-horizon-overlap-fix.md`. Status block relocated to top-right; big-time collapsed to single home at `left: 140`; `MacroShifter` time-shift disabled for Horizon (`intervalH = 0` guard).
 - [x] **Phase 22: Error trap** -- shipped 2026-05-18. Spec at `docs/phase-22-error-trap.md`. `ErrorLog` global error/unhandledrejection trap with 50-entry localStorage ring buffer; `VersionOverlay` long-press chip opens scrollable viewer.
 - [x] **Phase 23: Golden-hour accent + stale-data dimming** -- shipped 2026-05-18. Spec at `docs/phase-23-golden-hour-stale-data.md`. `SkyColorModule` golden-hour RGB-lerp of `--type-accent`; `accentSkyTrack` promoted to actively-read; `StaleMonitor` module with per-feed thresholds; bundle 229 KB.
+- [x] **Phase 24: Discovery polish** -- shipped 2026-05-19. Spec at `docs/phase-24-discovery-polish.md`. Meteor whisper (Editorial dropline 22:00-04:00 on shower peaks, observance precedence); face shuffle (off/weekday/random, `?shuffle=` URL param, 6h override grace); Calm first-boot moon pulse (opacity flicker, once-only); bundle 240 KB (+8.2 KB vs pre-phase).
+
+## Phase 24 follow-ups
+
+- [ ] **Eclipse-as-observance** -- add 2026-08-12 Total Solar Eclipse (and other almanac eclipses in 2026-2030) to `ObservanceModule._builtIn` so the observance-precedence path suppresses the Perseid whisper on that date. Implementation cost is small (~6 entries from `almanac.json`), but the design call on treatment level (major vs light) is for chihiro. See spec acceptance criterion 5 for the V1 behavior as shipped.
+- [ ] **Whisper string length -- V2 copy/voice pass** -- "Eta Aquariid meteor shower, peak tonight." is approximately 560 px wide in Editorial's dropline zone, roughly 1.7-2x wider than a typical observance string. Coraline confirmed it fits cleanly with no wrap or overflow, but flagged the length variance for potential copy/voice tightening in V2. The whisper mapping table is in `ObservanceModule._WHISPER_LONG` (or equivalent); the fix is a one-liner per shower name.
+- [ ] **Bundle budget note** -- Phase 24 came in at +8.2 KB (231,986 → 240,360 bytes) against a +5 KB estimate. Three features in one phase makes the estimate hard to hit. At 240 KB, there is 10 KB of headroom under the 250 KB cap. Revisit budget at the next phase that adds significant code.
 
 ## Phase 23 follow-ups
 

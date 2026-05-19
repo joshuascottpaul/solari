@@ -148,6 +148,14 @@ html, body {
   transition: left 60s ease-in-out, top 60s ease-in-out;
 }
 
+/* Phase 24: first-boot Calm pulse. Runs once per install (gated by
+   solari.firstBoot.calmPulseShown). The class adds an opacity transition;
+   CalmFace._runPulse flips opacity to 0.55 then back to 1.0 over 1600 ms. */
+#moon-disc.is-first-pulse {
+  transition: opacity 800ms cubic-bezier(0.4, 0, 0.2, 1),
+              left 60s ease-in-out, top 60s ease-in-out;
+}
+
 #slot {
   position: absolute; text-align: center;
   left: var(--slot-x); top: var(--slot-y);
