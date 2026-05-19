@@ -186,6 +186,103 @@ const ACCENT_PALETTE = {
   paper: { hex: '#E8E0D0', secondary: 'rgba(240, 235, 220, 0.62)' }
 };
 
+// Phase 22: global error trap -- ring buffer of last 50 errors, mirrored to
+// localStorage under 'solari.errorLog'. Installed before the boot IIFE so it
+// covers both the main display and the picker page. Must never crash the page.
+const ErrorLog = {
+  KEY: 'solari.errorLog',
+  CAP: 50,
+  _buf: null,
+
+  _load() {
+    try {
+      const raw = localStorage.getItem(this.KEY);
+      if (!raw) return [];
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr.slice(-this.CAP) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  _persist() {
+    try {
+      localStorage.setItem(this.KEY, JSON.stringify(this._buf));
+    } catch {
+      // Quota: drop oldest in-memory and retry once.
+      if (this._buf.length > 1) {
+        this._buf.shift();
+        try {
+          localStorage.setItem(this.KEY, JSON.stringify(this._buf));
+        } catch (e) {
+          try { console.warn('ErrorLog: persist failed', e); } catch {}
+        }
+      }
+    }
+  },
+
+  capture(entry) {
+    try {
+      if (this._buf === null) this._buf = this._load();
+      const trunc = (s, n) => typeof s === 'string' ? s.slice(0, n) : '';
+      this._buf.push({
+        ts:    new Date().toISOString(),
+        kind:  entry.kind === 'rejection' ? 'rejection' : 'error',
+        msg:   trunc(entry.msg, 240),
+        src:   trunc(entry.src, 120),
+        line:  typeof entry.line === 'number' ? entry.line : null,
+        col:   typeof entry.col  === 'number' ? entry.col  : null,
+        stack: trunc(entry.stack, 480)
+      });
+      if (this._buf.length > this.CAP) this._buf.shift();
+      this._persist();
+    } catch (err) {
+      // Trap handler itself must never throw.
+      try { console.warn('ErrorLog: capture failed', err); } catch {}
+    }
+  },
+
+  read() {
+    if (this._buf === null) this._buf = this._load();
+    return this._buf.slice();
+  },
+
+  install() {
+    try {
+      window.addEventListener('error', (ev) => {
+        const err = ev.error;
+        const msg   = String(err ? (err.message || ev.message || '') : (ev.message || ''));
+        const stack = err ? String(err.stack || '') : '';
+        this.capture({
+          kind:  'error',
+          msg,
+          src:   ev.filename ? String(ev.filename) : '',
+          line:  typeof ev.lineno === 'number' ? ev.lineno : null,
+          col:   typeof ev.colno  === 'number' ? ev.colno  : null,
+          stack: stack ? stack.split('\n').slice(0, 3).join(' | ') : ''
+        });
+      });
+      window.addEventListener('unhandledrejection', (ev) => {
+        const reason = ev.reason;
+        const isObj  = reason != null && typeof reason === 'object';
+        const msg    = String(isObj ? (reason.message || reason) : reason);
+        const stack  = isObj ? String(reason.stack || '') : '';
+        this.capture({
+          kind:  'rejection',
+          msg,
+          src:   '', line: null, col: null,
+          stack: stack ? stack.split('\n').slice(0, 3).join(' | ') : ''
+        });
+      });
+    } catch (err) {
+      try { console.warn('ErrorLog: install failed', err); } catch {}
+    }
+  }
+};
+
+ErrorLog.install();
+window.ErrorLog = ErrorLog;
+
 const AppState = {
   time: {
     hours: 0,
@@ -2179,6 +2276,8 @@ const VersionOverlay = {
   _updateAvailable: false,
   _prompted: false,      // true after showing "UPDATE AVAILABLE"
   _lastShowTime: 0,      // timestamp of last _show() call for tap debounce
+  _viewerMode: false,    // Phase 22: true while error-log viewer is open
+  _dismissHandler: null, // Phase 22: bound listener for tap-to-dismiss
 
   init() {
     // Phase 17: gesture surface differs per face. Calm uses the moon disc;
@@ -2295,10 +2394,12 @@ const VersionOverlay = {
   },
 
   _show() {
+    if (this._viewerMode) return;
     if (!this._el) {
       this._el = document.createElement('div');
       this._el.className = 'version-overlay';
       document.body.appendChild(this._el);
+      this._attachChipLongPress();
     }
 
     this._lastShowTime = Date.now();
@@ -2314,13 +2415,119 @@ const VersionOverlay = {
       this._prompted = false;
     }
     this._el.style.opacity = '1';
+    this._el.classList.add('is-visible');
 
     if (this._timerId) clearTimeout(this._timerId);
     this._timerId = setTimeout(() => {
+      // Viewer mode keeps the chip open until explicit dismiss.
+      if (this._viewerMode) { this._timerId = null; return; }
       this._el.style.opacity = '0';
+      this._el.classList.remove('is-visible');
       this._prompted = false;
       this._timerId = null;
     }, 4000);
+  },
+
+  // Distinct from the long-press on the face surface (which opens the picker).
+  // Attached once when the chip element is created.
+  _attachChipLongPress() {
+    const LONG_PRESS_MS = 600;
+    let pressTimer = null;
+    let longPressFired = false;
+
+    const onPressStart = () => {
+      if (this._el.style.opacity === '0') return;
+      longPressFired = false;
+      if (pressTimer) clearTimeout(pressTimer);
+      pressTimer = setTimeout(() => {
+        longPressFired = true;
+        this._openViewer();
+      }, LONG_PRESS_MS);
+    };
+    const onPressEnd = (e) => {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      if (longPressFired) e.preventDefault();
+    };
+    const onPressCancel = () => {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    };
+
+    if ('ontouchstart' in window) {
+      this._el.addEventListener('touchstart', onPressStart, { passive: true });
+      this._el.addEventListener('touchend', onPressEnd);
+      this._el.addEventListener('touchcancel', onPressCancel);
+    } else {
+      this._el.addEventListener('mousedown', onPressStart);
+      this._el.addEventListener('mouseup', onPressEnd);
+      this._el.addEventListener('mouseleave', onPressCancel);
+    }
+  },
+
+  _openViewer() {
+    if (!this._el || this._viewerMode) return;
+    this._viewerMode = true;
+    if (this._timerId) { clearTimeout(this._timerId); this._timerId = null; }
+    this._el.classList.add('is-expanded');
+    this._el.style.opacity = '1';
+    this._renderViewer();
+
+    // Defer attach so the long-press release doesn't immediately dismiss.
+    const onDocPress = (ev) => {
+      if (!this._el.contains(ev.target)) this._closeViewer();
+    };
+    this._dismissHandler = onDocPress;
+    setTimeout(() => {
+      document.addEventListener('touchstart', onDocPress, { passive: true });
+      document.addEventListener('mousedown', onDocPress);
+    }, 0);
+  },
+
+  _renderViewer() {
+    if (!this._el) return;
+    const entries = ErrorLog.read();
+    const mkEl = (tag, cls, txt) => {
+      const el = document.createElement(tag);
+      el.className = cls;
+      if (txt !== undefined) el.textContent = txt;
+      return el;
+    };
+
+    this._el.textContent = '';
+    const list = mkEl('div', 'errorlog-list');
+
+    if (entries.length === 0) {
+      list.appendChild(mkEl('div', 'errorlog-empty', 'no errors captured'));
+    } else {
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const e = entries[i];
+        const row = mkEl('div', 'errorlog-row');
+        const ts = (e.ts || '').replace('T', ' ').replace('Z', '');
+        row.appendChild(mkEl('div', 'errorlog-head', ts + '  \u00B7  ' + (e.kind || 'error')));
+        row.appendChild(mkEl('div', 'errorlog-msg', e.msg || ''));
+        if (e.src || e.line !== null) {
+          const lc = e.line !== null ? ':' + e.line + (e.col !== null ? ':' + e.col : '') : '';
+          row.appendChild(mkEl('div', 'errorlog-loc', (e.src || '') + lc));
+        }
+        if (e.stack) row.appendChild(mkEl('div', 'errorlog-stack', e.stack));
+        list.appendChild(row);
+      }
+    }
+    this._el.appendChild(list);
+  },
+
+  _closeViewer() {
+    if (!this._viewerMode) return;
+    this._viewerMode = false;
+    if (this._dismissHandler) {
+      document.removeEventListener('touchstart', this._dismissHandler);
+      document.removeEventListener('mousedown', this._dismissHandler);
+      this._dismissHandler = null;
+    }
+    if (this._el) {
+      this._el.classList.remove('is-expanded', 'is-visible');
+      this._el.textContent = '';
+      this._el.style.opacity = '0';
+    }
   }
 };
 

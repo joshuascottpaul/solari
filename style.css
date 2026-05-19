@@ -193,6 +193,59 @@ html, body {
   z-index: 50;
 }
 
+/* Phase 22: chip is interactive only while visible (post-tap on moon disc
+   or while the error-log viewer is open). Keeps the chip from intercepting
+   touches on faces behind it when its opacity is 0. */
+.version-overlay.is-visible,
+.version-overlay.is-expanded {
+  pointer-events: auto;
+}
+
+/* Phase 22: expanded state houses the error-log viewer. */
+.version-overlay.is-expanded {
+  bottom: 6vh;
+  width: 64vw;
+  max-height: 70vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  text-align: left;
+  font-size: 0.8vw;
+  background: rgba(10, 10, 10, 0.92);
+  padding: 1.4vh 1.6vw;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.errorlog-empty {
+  color: var(--type-tertiary);
+  font-style: italic;
+  text-align: center;
+  padding: 1vh 0;
+}
+
+.errorlog-row {
+  padding: 0.8vh 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+.errorlog-row:first-child { border-top: 0; }
+
+.errorlog-head {
+  color: var(--type-tertiary);
+  font-size: 0.7vw;
+  letter-spacing: 0.04em;
+}
+.errorlog-msg {
+  color: var(--type-primary);
+  padding-top: 0.2vh;
+}
+.errorlog-loc,
+.errorlog-stack {
+  color: var(--type-tertiary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65vw;
+  padding-top: 0.2vh;
+  word-break: break-all;
+}
+
 #refresher-overlay {
   position: fixed; inset: 0;
   background: #404040; opacity: 0;

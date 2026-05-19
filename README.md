@@ -142,6 +142,8 @@ A single tap on the moon disc (Calm) or the time numerals (Mechanical) shows the
 
 When a new version is live on GitHub Pages, the overlay shows "UPDATE AVAILABLE · TAP TO RELOAD". Tap it to force-fetch fresh files. This is the recommended way to update a running iPad install.
 
+To inspect captured JavaScript errors, tap the moon disc or time numerals to show the version chip, then long-press the chip for 600 ms. The chip expands into a scrollable log of the last 50 captured errors. Tap anywhere outside to close. This is a developer diagnostic, not a user-facing feature.
+
 ### Service worker caching
 
 On first visit, all assets are cached for offline use. Subsequent visits may be served from the cache until the version overlay detects a new commit. If you need to force a fresh load during development:
