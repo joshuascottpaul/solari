@@ -4,7 +4,7 @@ Active work tracker. CLAUDE.md is for stable reference; this file is for in-flig
 
 ## V1 complete
 
-4 clockfaces shipped. Phases 16-20 complete as of 2026-05-12. Phase 20.1 patch (Horizon overlap fix) shipped 2026-05-13. Phase 22 (error trap) shipped 2026-05-18. Phase 23 (golden-hour accent + stale-data dimming) shipped 2026-05-18; bundle back under 250 KB cap at 229 KB. Phase 24 (discovery polish: meteor whisper, face shuffle, Calm pulse) shipped 2026-05-19; bundle 240 KB. Editorial code merged but user-facing surfaces deferred to V2.
+4 clockfaces shipped. Phases 16-20 complete as of 2026-05-12. Phase 20.1 patch (Horizon overlap fix) shipped 2026-05-13. Phase 22 (error trap) shipped 2026-05-18. Phase 23 (golden-hour accent + stale-data dimming) shipped 2026-05-18; bundle back under 250 KB cap at 229 KB. Phase 24 (discovery polish: meteor whisper, face shuffle, Calm pulse) shipped 2026-05-19; bundle 240 KB. Phase 25 (Horizon arc trails) shipped 2026-05-19; bundle 228 KB. Editorial code merged but user-facing surfaces deferred to V2.
 
 - [x] **Phase 17: Mechanical face** -- shipped 2026-05-11. Spec at `docs/phase-17-mechanical-face.md`. Hermione approved with minor follow-ups resolved inline (ACCENT_PALETTE dual-source comment, `--type-tertiary` 60s transition fix).
 - [x] **Phase 18: Departures face** -- shipped 2026-05-12. Spec at `docs/phase-18-departures-face.md`. Five data rows, per-character KineticType cascade (110 ms stagger), gold bezel borders, face-aware DriftEngine activeKeys, MoonModule moonrise/moonset extensions.
@@ -14,6 +14,12 @@ Active work tracker. CLAUDE.md is for stable reference; this file is for in-flig
 - [x] **Phase 22: Error trap** -- shipped 2026-05-18. Spec at `docs/phase-22-error-trap.md`. `ErrorLog` global error/unhandledrejection trap with 50-entry localStorage ring buffer; `VersionOverlay` long-press chip opens scrollable viewer.
 - [x] **Phase 23: Golden-hour accent + stale-data dimming** -- shipped 2026-05-18. Spec at `docs/phase-23-golden-hour-stale-data.md`. `SkyColorModule` golden-hour RGB-lerp of `--type-accent`; `accentSkyTrack` promoted to actively-read; `StaleMonitor` module with per-feed thresholds; bundle 229 KB.
 - [x] **Phase 24: Discovery polish** -- shipped 2026-05-19. Spec at `docs/phase-24-discovery-polish.md`. Meteor whisper (Editorial dropline 22:00-04:00 on shower peaks, observance precedence); face shuffle (off/weekday/random, `?shuffle=` URL param, 6h override grace); Calm first-boot moon pulse (opacity flicker, once-only); bundle 240 KB (+8.2 KB vs pre-phase).
+- [x] **Phase 25: Horizon arc trails** -- shipped 2026-05-19. Spec at `docs/phase-25-horizon-arc-trails.md`. Elapsed-arc trail behind sun and moon discs; solid 1.5 px, opacity gradient 0.10 → 0.32, fixed celestial hex; trail Bezier control at `HORIZON_Y − 2*ARC_H` (peaks at disc apex); de Casteljau split at disc parameter `p`; edge gating on alwaysUp/alwaysDown; gradient-opacity-along-a-path is face-local to Horizon by design; bundle +2.8 KB, total ~228 KB.
+
+## Phase 25 follow-ups
+
+- [ ] **Moon-disc / sun-disc z-order at conjunction** -- at solar-lunar conjunction, the moon disc renders on top of the sun disc (pre-existing z-order from Phase 20). Surfaced during Phase 25 coraline review; not a Phase 25 regression. Ticket separately for V2: decide whether to swap z-order dynamically when discs overlap, or accept the current behavior.
+- [ ] **Sin-vs-quadratic interior residual on trails** -- the trail Bezier and the disc sinusoid are coincident at endpoints and apex; interior residual is bounded at ~4% of ARC_H (~10 px). Below visual threshold at 2 m viewing distance and accepted as shipped. V2 option: replace the quadratic with a literal sinusoidal retrace if astronomy-strictness matters more than the simplicity of de Casteljau.
 
 ## Phase 24 follow-ups
 
