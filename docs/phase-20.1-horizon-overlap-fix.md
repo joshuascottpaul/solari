@@ -189,7 +189,7 @@ Phase 20 declared eight burn-in protection layers (SDD Section 9, `docs/phase-20
 
 Layer-4 coverage for the time element on Horizon is now zero. The remaining coverage comes from layer 1 (Perlin drift, +/- 24 x 18 px envelope around a fixed anchor at left=140, top=560) plus layer 2 (global 4 px shift on a 6 min cadence) plus layer 6 (luminance breath on the same pixels). At 220 px Manrope 200 weight, character stroke widths are ~3-4 px; the drift envelope shifts each lit pixel by roughly six stroke-widths in each axis over the 117 s cycle, with the 6 min global shift offsetting the centre by another 4 px. This is materially less protection than the 880 px home-to-home translation removed here, but it remains within the same order of magnitude as the per-element coverage that protected `#time` on Calm for V0 phases 1-15, which ran on the same iPad without burn-in over multi-day endurance tests.
 
-No new drift sub-channel is introduced. If sentry's first endurance pass surfaces a hot pixel signature, the follow-up is to widen the `time` channel amplitude (e.g. ampX: 36, ampY: 27) rather than reintroduce a macro shift -- that decision is deferred and explicitly out of scope here.
+No new drift sub-channel is introduced. If yuki's first endurance pass surfaces a hot pixel signature, the follow-up is to widen the `time` channel amplitude (e.g. ampX: 36, ampY: 27) rather than reintroduce a macro shift -- that decision is deferred and explicitly out of scope here.
 
 ## 10. Picker Preview Parity
 
@@ -230,7 +230,7 @@ All criteria are testable on iPad Air M4 Safari 18 against a fresh master build.
 6. The picker page (`clockface.html`) Horizon card renders the big-time at left=140 and the status block at top-right with the same geometry as the main display, scaled by the card's preview transform.
 7. Long-press on `#hz-time` (600 ms) opens the picker; single tap opens VersionOverlay. Both interactions unchanged.
 8. Coraline's screenshot suite re-run produces no `time-overlap-status` or `time-clip-left` flags.
-9. After a 24 h endurance run on the branch, sentry reports no new hot-pixel signature around the `#hz-time` bounding box compared to the Phase 20 baseline.
+9. After a 24 h endurance run on the branch, yuki reports no new hot-pixel signature around the `#hz-time` bounding box compared to the Phase 20 baseline.
 
 Acceptance criteria 9 is informational; it is not a merge gate but should be tracked in the phase-20.1 verification log.
 
@@ -258,7 +258,7 @@ Explicit non-goals for this patch:
 
 ## 18. Rollout
 
-Standard pipeline: phase branch `phase-20.1-horizon-overlap-fix`, misaka implements, mikasa simplifies, hermione reviews, shizuku updates `CLAUDE.md` (note that horizon time macro-shift is now disabled and explain the per-face skip path in MacroShifter), coraline re-runs screenshot audit, sentry endurance pass optional, leia merges to master with `--no-ff` and tags `phase-20.1`.
+Standard pipeline: phase branch `phase-20.1-horizon-overlap-fix`, misaka implements, mikasa simplifies, hermione reviews, shizuku updates `CLAUDE.md` (note that horizon time macro-shift is now disabled and explain the per-face skip path in MacroShifter), coraline re-runs screenshot audit, yuki endurance pass optional, leia merges to master with `--no-ff` and tags `phase-20.1`.
 
 ## 19. References
 

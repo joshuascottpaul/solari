@@ -313,7 +313,7 @@ Replace `pytest` commands with browser-based debugging commands using Chrome Dev
 
 ## 3. New Agents to Consider
 
-### sentry-endurance (sonnet) -- Long-running stability monitor
+### yuki-endurance (sonnet) -- Long-running stability monitor
 
 **Role:** Runs the display in a headless browser for extended periods (1h, 8h, 24h) and monitors for degradation.
 
@@ -549,7 +549,7 @@ If any agent memory directories contain memories from the build_tfidf project, d
 - leia: add phase-number commit convention, keep everything else.
 
 **New agents to create:**
-- sentry-endurance: long-running stability monitor.
+- yuki-endurance: long-running stability monitor.
 - ada-sdd-compliance: specification conformance checker (optional, can be folded into hermione).
 
 **Model changes to consider:**

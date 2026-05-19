@@ -113,7 +113,7 @@ Open `http://localhost:8000` in a browser. Use Safari on iPad for final verifica
 
 ## Deploy
 
-Push to `main`. GitHub Pages serves the files directly -- no build step required.
+Push to `master`. GitHub Pages serves the files directly -- no build step required.
 
 ## iPad setup
 

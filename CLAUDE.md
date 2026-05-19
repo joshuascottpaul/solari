@@ -78,6 +78,7 @@ V0 complete (Phases 1-15). V1 ships 4 faces (Calm, Mechanical, Departures, Horiz
 - [x] Phase 18: Departures face -- DeparturesFace with five data rows, per-character split-flap cascade, gold bezel borders, five independent departureRow drift sub-channels, face-aware DriftEngine activeKeys, MoonModule moonrise/moonset extensions
 - [~] Phase 19: Editorial face -- partial (code shipped; Cormorant Garamond webfont and picker live-render rolled back per user direction; falls back to Georgia; V2 restore)
 - [x] Phase 20: Horizon face -- HorizonFace with full-stage 1180x820 SVG diagram, sun and moon arcs, 25 hour ticks, phase-correct crescent, 1 px gold hairline cursor, 220 px Manrope 200 big-time, accentSkyTrack opt-out (reserved V2 hook), macro shift disabled for Horizon in Phase 20.1; cross-fade transition vocabulary removed in 2026-05-14 post-V1 housekeeping
+- [ ] Phase 21: WKWebView shell -- native iOS and tvOS apps via thin WKWebView shells loading bundled `index.html`, distributed through TestFlight internal-tester only; one Xcode workspace with two app targets sharing source; tvOS picker entry via Menu-button long-press; spec at `docs/phase-21-wkwebview-shell.md`; gated on non-coding prerequisites (Apple Developer Program, bundle IDs, icons, App Store Connect records)
 
 ## Key Design Rules
 
@@ -144,7 +145,7 @@ Optional verification before merge or push to production:
 
 - **clarice** -- live-page diagnostic (console errors, render verification, picker functionality)
 - **coraline** -- visual review (screenshots, calm aesthetic, "no dashboard" check, accent palette; for face-level work, re-verify checklist items 1 and 2)
-- **sentry** -- endurance run (heap, DOM stability, burn-in oscillation, fetch health)
+- **yuki** -- endurance run (heap, DOM stability, burn-in oscillation, fetch health)
 
 Triggered review (face-level only):
 
@@ -193,6 +194,7 @@ docs/           # phase implementation specs and design notes
   phase-19-editorial-face.md
   phase-20-horizon-face.md
   phase-20.1-horizon-overlap-fix.md
+  phase-21-wkwebview-shell.md
 .github/
   workflows/
     refresh-tides.yml   # weekly cron: fetches and commits DFO tide predictions
