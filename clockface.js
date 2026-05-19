@@ -577,6 +577,9 @@
       localStorage.setItem('solari.clockface', face.id);
       localStorage.setItem('solari.clockface.tweaks', JSON.stringify(persistable));
       localStorage.setItem('solari.clockface.applied_at', new Date().toISOString());
+      // Phase 24: shuffle override. A deliberate pick survives the next 6 h
+      // of reloads (including the 03:00 refresher when within that window).
+      localStorage.setItem('solari.shuffle.overrideUntilNextBoot', new Date().toISOString());
     } catch (e) {
       console.warn('clockface: localStorage write failed', e);
       return;
