@@ -36,7 +36,8 @@ The authoritative specification is `2026 04 27 10 15 PM - SDD - Ambient Display 
 - `LuminanceBreath` -- CSS `--lum-mod` oscillates +/-15% on 30-min sine wave
 - `ResilienceManager` -- fetch wrapper with retry/backoff + localStorage caching
 - `DisplayModule` -- reads AppState, writes DOM; called every tick; ends each tick with `ACTIVE_FACE.render(AppState, TWEAKS)`
-- `VersionOverlay` -- tap moon disc to see build hash and deploy date; polls GitHub API hourly; shows "UPDATE AVAILABLE · TAP TO RELOAD" when a new commit is detected on master
+- `ErrorLog` -- Phase 22 global error trap; installed at the very top of `app.js`, before the `SOLARI_PICKER` boot guard, so both `index.html` and `clockface.html` capture into the same buffer; listens for `window.error` and `window.unhandledrejection`; writes to `localStorage` under `solari.errorLog` as a 50-entry ring buffer; capture fields: `ts`, `kind`, `msg` (≤240), `src` (≤120), `line`, `col`, `stack` (first 3 frames, ≤480); quota handling drops oldest and retries once; the key is excluded from the storage-event reload listener; `window.ErrorLog` exported for DevTools access
+- `VersionOverlay` -- tap moon disc to see build hash and deploy date; polls GitHub API hourly; shows "UPDATE AVAILABLE · TAP TO RELOAD" when a new commit is detected on master; Phase 22 extends it with a 600 ms long-press on the chip itself that opens a scrollable error-log viewer (`_viewerMode` flag, `_attachChipLongPress`, `_openViewer`, `_renderViewer`, `_closeViewer`); a `_viewerMode` guard at the top of `_show()` prevents face-surface taps from disrupting the viewer DOM while it is open
 - `Stage` -- creates the 1180x820 fixed canvas, computes `--stage-scale` via CSS transform on boot and resize
 - `ClockfaceRegistry` -- face lookup, normalizes localStorage values, falls back to `calm` on invalid input; applies accent and driftIntensity tweaks on boot
 - `CalmFace` -- Phase 16 face object; `init/render/teardown` contract; `render()` is a no-op in Phase 16 (shipped DisplayModule handles Calm DOM writes); placeholder for Phases 17-20 faces in the same shape
@@ -79,6 +80,7 @@ V0 complete (Phases 1-15). V1 ships 4 faces (Calm, Mechanical, Departures, Horiz
 - [~] Phase 19: Editorial face -- partial (code shipped; Cormorant Garamond webfont and picker live-render rolled back per user direction; falls back to Georgia; V2 restore)
 - [x] Phase 20: Horizon face -- HorizonFace with full-stage 1180x820 SVG diagram, sun and moon arcs, 25 hour ticks, phase-correct crescent, 1 px gold hairline cursor, 220 px Manrope 200 big-time, accentSkyTrack opt-out (reserved V2 hook), macro shift disabled for Horizon in Phase 20.1; cross-fade transition vocabulary removed in 2026-05-14 post-V1 housekeeping
 - [ ] Phase 21: WKWebView shell -- native iOS and tvOS apps via thin WKWebView shells loading bundled `index.html`, distributed through TestFlight internal-tester only; one Xcode workspace with two app targets sharing source; tvOS picker entry via Menu-button long-press; spec at `docs/phase-21-wkwebview-shell.md`; gated on non-coding prerequisites (Apple Developer Program, bundle IDs, icons, App Store Connect records)
+- [x] Phase 22: Error trap + ring buffer -- `ErrorLog` global error/unhandledrejection trap with 50-entry localStorage ring buffer (`solari.errorLog`); installed before the SOLARI_PICKER boot guard so both the main display and picker capture errors; `VersionOverlay` extended with a 600 ms long-press on the chip to surface a scrollable viewer; app.js +206 lines, style.css +53 lines; bundle now ~262.5 KB (over 250 KB cap since Phase 20); spec at `docs/phase-22-error-trap.md`
 
 ## Key Design Rules
 
@@ -195,6 +197,7 @@ docs/           # phase implementation specs and design notes
   phase-20-horizon-face.md
   phase-20.1-horizon-overlap-fix.md
   phase-21-wkwebview-shell.md
+  phase-22-error-trap.md
 .github/
   workflows/
     refresh-tides.yml   # weekly cron: fetches and commits DFO tide predictions
