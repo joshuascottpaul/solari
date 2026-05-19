@@ -53,7 +53,7 @@ Magazine-cover composition. Large italic time on the left, mirrored right-column
 
 ### Horizon
 
-Astronomy as truth. Full-stage SVG diagram with sun and moon arcs, 25 hour ticks, phase-correct moon crescent, dipping behind the horizon line at rise and set. Gold hairline cursor sweeps left-to-right over 24 hours. Big time in the bottom corner, status block right.
+Astronomy as truth. Full-stage SVG diagram with sun and moon arcs, 25 hour ticks, phase-correct moon crescent, dipping behind the horizon line at rise and set. Each body trails a fading elapsed arc from its rise point to its current position. Gold hairline cursor sweeps left-to-right over 24 hours. Big time in the bottom corner, status block right.
 
 ![Horizon face](screenshots/faces/horizon.png)
 
@@ -108,7 +108,7 @@ On first visit, localStorage is empty. The display defaults to Calm with gold ac
 
 ## Technology
 
-Vanilla HTML, CSS, and JavaScript. No framework, no build step, no API keys. Total size: approximately 240 KB uncompressed. Deployed as static files via GitHub Pages.
+Vanilla HTML, CSS, and JavaScript. No framework, no build step, no API keys. Total size: approximately 228 KB uncompressed. Deployed as static files via GitHub Pages.
 
 Vendored libraries in `lib/` (both MIT-licensed): SunCalc for astronomical calculations, Perlin for noise generation.
 

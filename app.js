@@ -4522,9 +4522,20 @@ const HorizonFace = {
             '<stop offset="0%" stop-color="#A8C7FF" stop-opacity="0.18"/>' +
             '<stop offset="100%" stop-color="#A8C7FF" stop-opacity="0"/>' +
           '</radialGradient>' +
+          // gradientUnits="userSpaceOnUse" so endpoints are SVG-absolute (written per tick).
+          '<linearGradient id="hzSunTrailGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="0">' +
+            '<stop offset="0%" stop-color="#F4C56C" stop-opacity="0.10"/>' +
+            '<stop offset="100%" stop-color="#F4C56C" stop-opacity="0.32"/>' +
+          '</linearGradient>' +
+          '<linearGradient id="hzMoonTrailGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="0">' +
+            '<stop offset="0%" stop-color="#A8C7FF" stop-opacity="0.10"/>' +
+            '<stop offset="100%" stop-color="#A8C7FF" stop-opacity="0.32"/>' +
+          '</linearGradient>' +
           '<clipPath id="hzDiscClip"><rect x="0" y="0" width="1180" height="441"/></clipPath>' +
         '</defs>' +
         '<g class="hz-sky-drift">' +
+          '<path class="hz-sun-trail" d="" stroke="url(#hzSunTrailGrad)" stroke-width="1.5" fill="none"/>' +
+          '<path class="hz-moon-trail" d="" stroke="url(#hzMoonTrailGrad)" stroke-width="1.5" fill="none"/>' +
           // Arcs (paths rebuilt on minute change when diagram key changes).
           '<path class="hz-sun-arc" d="" stroke="rgba(244,197,108,0.22)" stroke-dasharray="2 7" stroke-width="1" fill="none"/>' +
           '<path class="hz-moon-arc" d="" stroke="rgba(168,199,255,0.18)" stroke-dasharray="1 6" stroke-width="1" fill="none"/>' +
@@ -4599,6 +4610,10 @@ const HorizonFace = {
       moonGlyph: root.querySelector('.hz-moon-glyph'),
       sunArc: root.querySelector('.hz-sun-arc'),
       moonArc: root.querySelector('.hz-moon-arc'),
+      sunTrail: root.querySelector('.hz-sun-trail'),
+      moonTrail: root.querySelector('.hz-moon-trail'),
+      sunTrailGrad: root.querySelector('#hzSunTrailGrad'),
+      moonTrailGrad: root.querySelector('#hzMoonTrailGrad'),
       srNotch: root.querySelector('.hz-sr-notch'),
       ssNotch: root.querySelector('.hz-ss-notch'),
       mrNotch: root.querySelector('.hz-mr-notch'),
@@ -4795,8 +4810,27 @@ const HorizonFace = {
       els.sunDrop.setAttribute('x2', sxStr);
       els.sunDrop.setAttribute('y1', (sy + SUN_R).toFixed(2));
       els.sunGlyph.removeAttribute('display');
+
+      // Phase 25: sun trail via de Casteljau split at p. Uses current disc
+      // as endpoint so trail visually meets disc rather than Bezier-evaluated y.
+      // Bezier with control at HORIZON_Y - 2*ARC_H peaks at the disc's apex y:
+      // a quadratic Bezier reaches its peak at half the control offset, so the
+      // control coord is twice the disc-apex offset.
+      var sunMidX = (srX + ssX) / 2;
+      var sunCtrlY = HORIZON_Y - ARC_H * 2;
+      var sunCx = srX + p * (sunMidX - srX);
+      var sunCy = HORIZON_Y + p * (sunCtrlY - HORIZON_Y);
+      els.sunTrail.setAttribute('d',
+        'M ' + srX.toFixed(2) + ' ' + HORIZON_Y +
+        ' Q ' + sunCx.toFixed(2) + ' ' + sunCy.toFixed(2) +
+        ' ' + sxStr + ' ' + syStr);
+      els.sunTrailGrad.setAttribute('x1', srX.toFixed(2));
+      els.sunTrailGrad.setAttribute('y1', HORIZON_Y);
+      els.sunTrailGrad.setAttribute('x2', sxStr);
+      els.sunTrailGrad.setAttribute('y2', syStr);
     } else {
       els.sunGlyph.setAttribute('display', 'none');
+      els.sunTrail.setAttribute('d', '');
     }
 
     // Moon disc traverses sine over the moon arc (when up).
@@ -4819,6 +4853,7 @@ const HorizonFace = {
     }
     if (moonUp) {
       var mx, my;
+      var pm = 0;
       if (moonAU) {
         // alwaysUp: render disc near arc apex.
         mx = this._xAt(0.5);
@@ -4826,7 +4861,7 @@ const HorizonFace = {
       } else {
         var lenF = (moonsetF > moonriseF) ? (moonsetF - moonriseF) : ((1 - moonriseF) + moonsetF);
         var elapsedF = (nowF >= moonriseF) ? (nowF - moonriseF) : ((1 - moonriseF) + nowF);
-        var pm = lenF > 0 ? elapsedF / lenF : 0;
+        pm = lenF > 0 ? elapsedF / lenF : 0;
         mx = mrX + pm * (msX - mrX);
         my = HORIZON_Y - Math.sin(pm * Math.PI) * MOON_ARC_H;
       }
@@ -4836,6 +4871,25 @@ const HorizonFace = {
       els.moonHalo.setAttribute('cy', myStr);
       els.moonOutline.setAttribute('cx', mxStr);
       els.moonOutline.setAttribute('cy', myStr);
+
+      // Phase 25: moon trail. Suppressed on alwaysUp (no rise reference).
+      if (moonAU) {
+        els.moonTrail.setAttribute('d', '');
+      } else {
+        // Bezier control at HORIZON_Y - 2*MOON_ARC_H so trail peaks at disc apex; see sun trail.
+        var moonMidX = (mrX + msX) / 2;
+        var moonCtrlY = HORIZON_Y - MOON_ARC_H * 2;
+        var moonCx = mrX + pm * (moonMidX - mrX);
+        var moonCy = HORIZON_Y + pm * (moonCtrlY - HORIZON_Y);
+        els.moonTrail.setAttribute('d',
+          'M ' + mrX.toFixed(2) + ' ' + HORIZON_Y +
+          ' Q ' + moonCx.toFixed(2) + ' ' + moonCy.toFixed(2) +
+          ' ' + mxStr + ' ' + myStr);
+        els.moonTrailGrad.setAttribute('x1', mrX.toFixed(2));
+        els.moonTrailGrad.setAttribute('y1', HORIZON_Y);
+        els.moonTrailGrad.setAttribute('x2', mxStr);
+        els.moonTrailGrad.setAttribute('y2', myStr);
+      }
 
       // Phase-correct crescent path. Gated on illum + waxing (changes
       // smoothly across the lunar month; per-tick rebuild is cheap but
@@ -4854,6 +4908,7 @@ const HorizonFace = {
       els.moonGlyph.removeAttribute('display');
     } else {
       els.moonGlyph.setAttribute('display', 'none');
+      els.moonTrail.setAttribute('d', '');
       this._lastMoonGlyphKey = null;
     }
 
