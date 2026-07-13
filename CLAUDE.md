@@ -138,7 +138,7 @@ Eight independent layers -- defense in depth. See SDD Section 9 for full details
 - **DFO IWLS Tides** (Point Atkinson): `api-iwls.dfo-mpo.gc.ca` -- 6h poll, currently returning 404; fallback to `data/tides.json` (refreshed weekly by GitHub Actions)
 - **EC Weather Alerts** (Metro Vancouver): `weather.gc.ca/rss/battleboard/bcrm30_e.xml` -- 15-min poll, CORS blocked; fallback to `data/alerts.json`
 - **CORS status:** DFO and EC feeds both fail CORS. DFO tides are now kept current via a weekly GitHub Actions workflow (`.github/workflows/refresh-tides.yml`). EC alerts remain on a static fallback.
-- **GitHub Actions:** `refresh-tides.yml` runs every Monday at 06:00 UTC, fetches 90 days of predictions from DFO IWLS, and auto-commits updated `data/tides.json`. No-ops cleanly if the fetch fails or the data is unchanged.
+- **GitHub Actions:** `refresh-tides.yml` runs every Monday at 06:00 UTC, fetches 90 days of predictions from DFO IWLS, and auto-commits updated `data/tides.json`. No-ops cleanly if the fetch fails or the data is unchanged. A final keepalive step guards against GitHub's 60-day auto-disable of scheduled workflows: only a commit resets that timer (tags/releases/PRs do not), and the tide fetch usually no-ops, so it cannot keep itself alive. When the repo has been quiet 50+ days the step pushes one empty commit (`[skip ci]`) to reset the timer; it stays dormant during active development. Implemented inline rather than via the `keepalive-workflow` action, which is now blocked by GitHub for a ToS violation.
 
 ## Development
 

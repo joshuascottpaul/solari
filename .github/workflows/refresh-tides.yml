@@ -93,3 +93,22 @@ jobs:
           git add data/tides.json
           git commit -m "chore: refresh tide predictions"
           git push
+
+      # GitHub disables scheduled workflows after 60 days with no commit. The
+      # tide fetch usually no-ops (unchanged data), so it cannot keep itself
+      # alive. Only a commit resets the timer -- tags/releases/PRs do not. When
+      # the repo has been quiet 50+ days, push one empty commit to reset it.
+      # Stays dormant during active development (age stays low). [skip ci] keeps
+      # it from triggering the CI workflow.
+      - name: Keepalive (reset 60-day scheduled-workflow inactivity timer)
+        run: |
+          age_days=$(( ( $(date +%s) - $(git log -1 --format=%ct) ) / 86400 ))
+          if [ "$age_days" -ge 50 ]; then
+            echo "Repo committed ${age_days}d ago -- pushing keepalive commit"
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: keepalive [skip ci]"
+            git push
+          else
+            echo "Repo committed ${age_days}d ago -- no keepalive needed"
+          fi
