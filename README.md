@@ -112,7 +112,18 @@ Vanilla HTML, CSS, and JavaScript. No framework, no build step, no API keys. Tot
 
 Vendored libraries in `lib/` (both MIT-licensed): SunCalc for astronomical calculations, Perlin for noise generation.
 
-External data comes from free public APIs: Open-Meteo (weather, AQI), DFO IWLS (tides), Environment Canada (weather alerts). The live DFO tides feed currently returns errors; tides are served from a static fallback at `data/tides.json`, refreshed weekly by a GitHub Actions workflow.
+External data comes from free public APIs: Open-Meteo (weather, AQI), DFO IWLS (tides), Environment Canada (weather alerts). Open-Meteo is fetched live in the browser. The DFO and Environment Canada feeds do not send CORS headers, so the browser cannot read them directly; both fall back to static files in `data/`.
+
+### Tide data pipeline
+
+Because the browser cannot reach DFO IWLS directly, tides use a small server-side refresh loop instead of a live fetch:
+
+1. A GitHub Actions workflow (`.github/workflows/refresh-tides.yml`) runs every Monday at 06:00 UTC on GitHub's runners, where CORS does not apply.
+2. It fetches 90 days of high/low predictions for Point Atkinson from the DFO IWLS API and writes them to `data/tides.json`.
+3. It commits the file only when the data actually changed; an unchanged fetch (or an API error) is a clean no-op that leaves the last good data in place.
+4. The always-on display just reads the committed `data/tides.json` as a static file. There is no backend and no API key; the workflow is the only thing that talks to DFO.
+
+**Keepalive.** GitHub disables scheduled workflows after 60 days with no commit, and only a commit resets that timer (tags, releases, and merged PRs do not count). Since the tide fetch usually no-ops, it cannot keep itself alive during quiet periods. A final keepalive step handles this: when the repo has been quiet for 50+ days it pushes a single empty commit (`[skip ci]`) to reset the timer, and stays dormant the rest of the time. It is implemented inline rather than via the popular `keepalive-workflow` action, which GitHub has since blocked for a terms-of-service violation. No external monitoring is needed: GitHub emails the repo owner about both an impending auto-disable and any failed run.
 
 ## Run locally
 
