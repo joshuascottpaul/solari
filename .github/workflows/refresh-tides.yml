@@ -97,13 +97,13 @@ jobs:
       # GitHub disables scheduled workflows after 60 days with no commit. The
       # tide fetch usually no-ops (unchanged data), so it cannot keep itself
       # alive. Only a commit resets the timer -- tags/releases/PRs do not. When
-      # the repo has been quiet 50+ days, push one empty commit to reset it.
+      # the repo has been quiet 30+ days, push one empty commit to reset it.
       # Stays dormant during active development (age stays low). [skip ci] keeps
       # it from triggering the CI workflow.
       - name: Keepalive (reset 60-day scheduled-workflow inactivity timer)
         run: |
           age_days=$(( ( $(date +%s) - $(git log -1 --format=%ct) ) / 86400 ))
-          if [ "$age_days" -ge 50 ]; then
+          if [ "$age_days" -ge 30 ]; then
             echo "Repo committed ${age_days}d ago -- pushing keepalive commit"
             git config user.name  "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
